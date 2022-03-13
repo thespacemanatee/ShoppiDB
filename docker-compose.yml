@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  shoppidb1:
+    build:
+      context: ./Dockerfiles
+      dockerfile: DockerFile
+    container_name: shoppidb_1
+    ports:
+      - 8000:8000
+    volumes:
+      - .src/go:/app
+  redis:
+    image: redis:latest
+  redis_commander:
+    image: rediscommander/redis-commander
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOST=redis
+      - PORT=8081
+    depends_on:
+      - redis

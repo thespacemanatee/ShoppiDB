@@ -1,0 +1,5 @@
+#Template
+FROM golang:latest
+WORKDIR /app
+COPY ../go.mod ./
+RUN go mod download
