@@ -1,0 +1,12 @@
+#Template
+FROM golang:latest as main
+WORKDIR /app
+COPY ./go.mod ./
+RUN go mod download
+COPY ./src/*.go ./
+RUN go build -o /shoppidb
+
+FROM redis:latest
+WORKDIR /app
+COPY --from=main ./shoppidb ./
+CMD ["./shoppidb"]
