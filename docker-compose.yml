@@ -1,39 +1,29 @@
 version: "3.9"
 services:
-  # shoppidb:
-  #   image: shoppidb:latest
-  #   environment:
-  #     - NODE_ID= "{{.Task.Slot}}"
-  #   ports:
-  #     - 8000
-  # shoppidb1:
-  #   build:
-  #     context: ./
-  #     dockerfile: DockerFile_GoInstance
-  #   container_name: shoppidb_2
-  #   environment:
-  #     - NODE_ID=2
-  #   ports:
-  #     - 8001:8001
-  shoppidb: ## Easier dev env
+  shoppidb1: ## Easier dev env
     image: acim/go-reflex
-    container_name: shoppidb_reflex
+    container_name: shoppidb1
     environment:
       - NODE_ID=1
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src/main.go
-    ports:
-      - 8001:8001
     volumes:
       - .:/app
-  redis:
-    image: redis:latest
-  redis_commander:
-    image: rediscommander/redis-commander
-    ports:
-      - "8081:8081" 
+  redis_node:
+    build:
+      context: ./
+      dockerfile: DockerFile_NodeInstance
+    container_name: redis_node
     environment:
-      - REDIS_HOST=redis
-      - PORT=8081
-    depends_on:
-      - redis
+      - NODE_ID=1
+  dev_redis_node:
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: dev_redis_node
+    environment:
+      - NODE_ID=1
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src/main.go
+    volumes:
+      - .:/app

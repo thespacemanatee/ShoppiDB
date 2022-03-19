@@ -1,0 +1,8 @@
+FROM acim/go-reflex
+RUN wget https://download.redis.io/releases/redis-6.2.6.tar.gz
+RUN tar xzf redis-6.2.6.tar.gz
+WORKDIR /app/redis-6.2.6
+RUN make
+WORKDIR /app
+COPY ./dev_wrapper_services.sh ./dev_wrapper_services.sh
+CMD [ "./dev_wrapper_services.sh" ]
