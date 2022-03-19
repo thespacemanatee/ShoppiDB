@@ -28,6 +28,11 @@ services:
     volumes:
       - .:/app
       - devnode1:/redis/volume
+    networks:
+      - db
 
 volumes:
   devnode1:
+networks:
+  db:
+    name: db_network
