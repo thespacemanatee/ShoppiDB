@@ -27,3 +27,7 @@ services:
       - BUILD_ARGS=./src/main.go
     volumes:
       - .:/app
+      - devnode1:/redis/volume
+
+volumes:
+  devnode1:

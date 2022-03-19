@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start the first process
-/src/redis-server --daemonize yes &
+/redis/redis-6.2.6/src/redis-server --save 60 1 --dir /redis/volume &
   
 # Start the second process
 reflex -d none -c /usr/local/etc/reflex.conf
