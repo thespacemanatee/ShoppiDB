@@ -1,22 +1,6 @@
 version: "3.9"
 services:
-  shoppidb1: ## Easier dev env
-    image: acim/go-reflex
-    container_name: shoppidb1
-    environment:
-      - NODE_ID=1
-      - RACE_DETECTOR=1
-      - BUILD_ARGS=./src/main.go
-    volumes:
-      - .:/app
-  redis_node:
-    build:
-      context: ./
-      dockerfile: DockerFile_NodeInstance
-    container_name: redis_node
-    environment:
-      - NODE_ID=1
-  dev_redis_node:
+  dev_redis_node: #DNS name 
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
@@ -25,6 +9,7 @@ services:
       - NODE_ID=1
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src/main.go
+      - SEEDNODES=${SEEDNODES}
     volumes:
       - .:/app
       - devnode1:/redis/volume
