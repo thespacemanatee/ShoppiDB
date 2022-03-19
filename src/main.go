@@ -47,7 +47,7 @@ func sendMessage(id string) {
 	time.Sleep(time.Millisecond * 1)
 	con, err := net.Dial("tcp", target)
 
-	defer con.Close()
+	defer con.Close() //Requires to catch the null error when fail to connect before writing
 
 	checkErr(err)
 
