@@ -5,6 +5,8 @@ RUN tar xzf redis-6.2.6.tar.gz
 WORKDIR /redis/redis-6.2.6
 RUN make
 RUN mkdir -p /redis/volume
+RUN apt-get update
+RUN apt-get install netcat -y
 WORKDIR /app
 COPY ./dev_wrapper_services.sh ./dev_wrapper_services.sh
 CMD [ "./dev_wrapper_services.sh" ]
