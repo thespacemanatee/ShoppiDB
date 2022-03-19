@@ -1,10 +1,10 @@
 version: "3.9"
 services:
-  dev_redis_node: #DNS name 
+  node1: #DNS name 
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
-    container_name: dev_redis_node
+    container_name: node1
     environment:
       - NODE_ID=1
       - RACE_DETECTOR=1
@@ -15,9 +15,25 @@ services:
       - devnode1:/redis/volume
     networks:
       - db
+  node2: #DNS name 
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node2
+    environment:
+      - NODE_ID=2
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src/main.go
+      - SEEDNODES=${SEEDNODES}
+    volumes:
+      - .:/app
+      - devnode2:/redis/volume
+    networks:
+      - db
 
 volumes:
   devnode1:
+  devnode2:
 networks:
   db:
     name: db_network
