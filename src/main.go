@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,13 +16,16 @@ func main() {
 	seedNodes := os.Getenv("SEEDNODES")
 	// ring := conHashing.NewRing(MAX_KEY)
 	const maxNodes = 100
-	node := conHashing.NewNode(id, maxNodes, strings.Split(seedNodes, ","))
-	// fmt.Println("ring id:", node.Ring.MaxID)
+	node := conHashing.NewNode(id, strings.Split(seedNodes, ","))
+
+	// wait for messages
 	ln, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		log.Fatal("server, Listen", err)
 	}
-	go listenMessage(ln)
+	go listenMessage(ln, node)
+
+	// send message
 	for {
 		time.Sleep(time.Second * 10)
 		sendMessage(node)
@@ -29,7 +33,7 @@ func main() {
 	fmt.Println("End of Program")
 }
 
-func listenMessage(ln net.Listener) {
+func listenMessage(ln net.Listener, node conHashing.Node) {
 	fmt.Println("Start listening")
 	// accept connection
 	defer ln.Close()
@@ -43,7 +47,7 @@ func listenMessage(ln net.Listener) {
 			os.Exit(1)
 		}
 		fmt.Println("client connected")
-		go processClient(connection)
+		go processClient(connection, node)
 	}
 }
 
@@ -58,23 +62,23 @@ func sendMessage(node conHashing.Node) {
 	con, err := net.Dial("tcp", target)
 
 	if err != nil {
-		fmt.Println("Dial accepting: ", err.Error())
+		fmt.Println("Error dialing: ", err.Error())
 		os.Exit(2)
 	}
 	defer con.Close() //Requires to catch the null error when fail to connect before writing
 
 	checkErr(err)
 
-	_, err = con.Write([]byte(msg))
+	_, err = con.Write([]byte(strings.Join(msg, ",")))
 
 	checkErr(err)
 }
 
-func getNode(id string, node conHashing.Node) (string, string) {
+func getNode(id string, node conHashing.Node) (string, []string) {
 	switch id {
 	default:
 		fmt.Println("ERROR ID")
-		return "null", "null"
+		return "null", []string{"null"}
 	case "1":
 		var msg = generateMessage(node)
 		return "node2:8080", msg
@@ -90,22 +94,20 @@ func getNode(id string, node conHashing.Node) (string, string) {
 *	seed node - return list of seed nodes, NodeRingPositions []
 *
 * @return an iterator over all the tuples stored in this DbFile.
-*/
-func generateMessage(node conHashing.Node) string {
+ */
+func generateMessage(node conHashing.Node) []string {
 	var isSeed = node.IsSeed
-	fmt.Println(isSeed)
 	switch isSeed {
 	default:
 		fmt.Println("ERROR ID")
-		return "null"
+		return []string{"null"}
 	case true:
-		// seedNodes := node.SeedNodes
-		// fmt.Println("seedN:", seedNodes)
-		return "From node 1" 
+		return []string{node.ID, strconv.Itoa(node.Ring.MaxID)}
 	case false:
-		return "From node 2"
+		//when node first joined, ask for ring position
+		return []string{node.ID, "sdj sdjnsn"}
 	}
-	
+
 }
 
 func checkErr(err error) {
@@ -116,12 +118,25 @@ func checkErr(err error) {
 	}
 }
 
-func processClient(connection net.Conn) {
+func processClient(connection net.Conn, receiverNode conHashing.Node) {
 	buffer := make([]byte, 1024)
 	mLen, err := connection.Read(buffer)
 	if err != nil {
 		fmt.Println("Error reading:", err.Error())
 	}
-	fmt.Println("Received: ", string(buffer[:mLen]))
+	var rcvMsg = string(buffer[:mLen])
+	fmt.Println("Received: ", rcvMsg)
+	if receiverNode.ID == "1" {
+		// fmt.Println("processing message for node 1")
+		//check if other node is a new node
+		var senderNodeId = strings.Split(rcvMsg, ",")[0]
+		_,ok := receiverNode.Ring.NodesMap[senderNodeId]
+		if !ok {
+			conHashing.UpdateSeedNode(receiverNode, senderNodeId)
+		}
+	} else {
+		var numNodes = strings.Split(rcvMsg, ",")[1]
+		conHashing.UpdateNode(receiverNode, numNodes)
+	}
 	connection.Close()
 }
