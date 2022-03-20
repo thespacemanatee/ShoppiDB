@@ -8,8 +8,9 @@ services:
       environment:
         - NODE_ID=0
         - RACE_DETECTOR=1
-        - BUILD_ARGS=./src/main.go
-        - SEEDNODES=${SEEDNODES}
+        - BUILD_ARGS=./src
+        - SEEDNODES=0 
+        - MEMBERSHIP=yes
       volumes:
         - .:/app
         - devnode0:/redis/volume
@@ -23,8 +24,9 @@ services:
     environment:
       - NODE_ID=1
       - RACE_DETECTOR=1
-      - BUILD_ARGS=./src/main.go
-      - SEEDNODES=${SEEDNODES}
+      - BUILD_ARGS=./src
+      - SEEDNODES=0 
+      - MEMBERSHIP=yes
     volumes:
       - .:/app
       - devnode1:/redis/volume
@@ -38,8 +40,9 @@ services:
     environment:
       - NODE_ID=2
       - RACE_DETECTOR=1
-      - BUILD_ARGS=./src/main.go
-      - SEEDNODES=${SEEDNODES}
+      - BUILD_ARGS=./src
+      - SEEDNODES=0 
+      - MEMBERSHIP=yes
     volumes:
       - .:/app
       - devnode2:/redis/volume
