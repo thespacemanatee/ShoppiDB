@@ -1,51 +1,64 @@
 package data_versioning
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Node string
 
 type Counter int
 
 type Clock struct {
-	counter     Counter
-	lastUpdated time.Time
+	Counter     Counter
+	LastUpdated time.Time
 }
 
 type VectorClock map[Node]Clock
 
+type DataObject struct {
+	ObjectId string
+	RawData  json.RawMessage
+	Version  VectorClock
+}
+
 // UpdateVectorClock updates a node's clock in the object's vector clock
 func UpdateVectorClock(node Node, vectorClock VectorClock) {
 	if clock, exists := vectorClock[node]; exists {
-		clock.counter += 1
+		clock.Counter += 1
 		vectorClock[node] = clock
 	} else {
-		vectorClock[node] = Clock{counter: 1, lastUpdated: time.Now()}
+		vectorClock[node] = Clock{Counter: 1, LastUpdated: time.Now()}
 	}
 }
 
-func IsConflictingVectorClocks(a VectorClock, b VectorClock) bool {
+func CompareVectorClocks(a VectorClock, b VectorClock, dataObjects map[string]DataObject) bool {
 	if !equalNodes(a, b) {
-
+		// Case 1: a and b are the same length
+		// 		if a is strictly less than b, return b only
+		// 		if a is not strictly smaller than b, return both
+		// Case 2: a is shorter than b
+		// 		if a is not strictly smaller than b, return both
+		// 		if a is strictly less than b, return b only
+		// Longer is just vice versa
 	}
 }
 
-// GetConflictingVectorClocks returns an array of conflicting vector clocks
-func GetConflictingVectorClocks(vectorClocks []VectorClock) []VectorClock {
-	var conflictingClocks []VectorClock
-	for i := 0; i < len(vectorClocks); i++ {
-		conflict := true
-		for j := 0; j < len(vectorClocks); j++ {
-			if i != j {
-				if !IsConflictingVectorClocks(vectorClocks[i], vectorClocks[j]) {
-					conflict = false
-				}
-			}
-		}
-		if conflict {
-			conflictingClocks = append(conflictingClocks, vectorClocks[i])
+// GetResponseDataObjects returns an array of data objects to be returned to the client. If there are more than
+// one objects, semantic reconciliation is required at the client.
+func GetResponseDataObjects(dataObjects []DataObject) map[string]DataObject {
+	if len(dataObjects) == 0 {
+		return map[string]DataObject{}
+	}
+	// Create a set that always has at least 1 data object (first object in array)
+	conflictingObjects := make(map[string]DataObject)
+	conflictingObjects[dataObjects[0].ObjectId] = dataObjects[0]
+	for i := 0; i < len(dataObjects); i++ {
+		for j := i + 1; j < len(dataObjects); j++ {
+			CompareVectorClocks(dataObjects[i].Version, dataObjects[j].Version, conflictingObjects)
 		}
 	}
-	return conflictingClocks
+	return conflictingObjects
 }
 
 // Returns true if vector a and b have the same nodes.
