@@ -32,15 +32,34 @@ func UpdateVectorClock(node Node, vectorClock VectorClock) {
 	}
 }
 
-func CompareVectorClocks(a VectorClock, b VectorClock, dataObjects map[string]DataObject) bool {
-	if !equalNodes(a, b) {
-		// Case 1: a and b are the same length
-		// 		if a is strictly less than b, return b only
-		// 		if a is not strictly smaller than b, return both
-		// Case 2: a is shorter than b
-		// 		if a is not strictly smaller than b, return both
-		// 		if a is strictly less than b, return b only
-		// Longer is just vice versa
+// DeConflictDataObjects returns true if there is an unresolvable conflict, and a new set of data objects after trying syntatic reconciliation.
+func DeConflictDataObjects(a DataObject, b DataObject, dataObjects map[string]DataObject) (bool, map[string]DataObject) {
+	aIsStale := true
+	bIsStale := true
+
+	for node, _ := range a.Version {
+		aIsStale = aIsStale && (a.Version[node].Counter <= b.Version[node].Counter)
+	}
+
+	for node, _ := range b.Version {
+		bIsStale = bIsStale && (b.Version[node].Counter <= a.Version[node].Counter)
+	}
+
+	newObjects := make(map[string]DataObject)
+	for k, v := range dataObjects {
+		newObjects[k] = v
+	}
+
+	if aIsStale {
+		newObjects[b.ObjectId] = b
+		return false, newObjects
+	} else if bIsStale {
+		newObjects[a.ObjectId] = a
+		return false, newObjects
+	} else {
+		newObjects[a.ObjectId] = a
+		newObjects[b.ObjectId] = b
+		return true, newObjects
 	}
 }
 
@@ -55,22 +74,9 @@ func GetResponseDataObjects(dataObjects []DataObject) map[string]DataObject {
 	conflictingObjects[dataObjects[0].ObjectId] = dataObjects[0]
 	for i := 0; i < len(dataObjects); i++ {
 		for j := i + 1; j < len(dataObjects); j++ {
-			CompareVectorClocks(dataObjects[i].Version, dataObjects[j].Version, conflictingObjects)
+			_, newObjects := DeConflictDataObjects(dataObjects[i], dataObjects[j], conflictingObjects)
+			conflictingObjects = newObjects
 		}
 	}
 	return conflictingObjects
-}
-
-// Returns true if vector a and b have the same nodes.
-func equalNodes(a, b VectorClock) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for node, _ := range a {
-		_, exists := b[node]
-		if exists == false {
-			return false
-		}
-	}
-	return true
 }
