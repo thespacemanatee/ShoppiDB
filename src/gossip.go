@@ -32,20 +32,6 @@ const (
 	CONN_TYPE = "tcp"
 )
 
-func (g *gossip) serverStart() {
-	fmt.Println("Starting server...")
-	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
-	checkErr(err)
-	defer dataStream.Close()
-
-	for {
-		con, err := dataStream.Accept()
-		checkErr(err)
-		go g.listenMsg(con)
-	}
-
-}
-
 func (g *gossip) clientStart() {
 	// get seed nodes []string
 	seedNodesArr := getSeedNodes()
@@ -114,6 +100,20 @@ func (g *gossip) sendMyNodeMap(con net.Conn) {
 	fmt.Println(getLocalContainerName()+" has sent", myNodeMap)
 }
 
+func (g *gossip) serverStart() {
+	fmt.Println("Starting server...")
+	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
+	checkErr(err)
+	defer dataStream.Close()
+
+	for {
+		con, err := dataStream.Accept()
+		checkErr(err)
+		go g.listenMsg(con)
+	}
+
+}
+
 //Helper functions for gossip.serverStart
 func (g *gossip) listenMsg(con net.Conn) {
 	dec := gob.NewDecoder(con)
@@ -121,8 +121,11 @@ func (g *gossip) listenMsg(con net.Conn) {
 	err := dec.Decode(&senderNodeMap)
 	checkErr(err)
 	fmt.Println(getLocalContainerName()+" has received", senderNodeMap)
-	msg, returningNodeMap := g.compareAndUpdate(senderNodeMap)
-	con.Close()
+	updateForSender, returningNodeMap := g.compareAndUpdate(senderNodeMap)
+	sendMsg(con, updateForSender)
+	if updateForSender == "yes" {
+		sendUpdateNodeMap(con, returningNodeMap)
+	}
 }
 
 func (g *gossip) compareAndUpdate(senderNodeMap map[string]node) (string, map[string]node) {
@@ -157,13 +160,17 @@ func (g *gossip) compareAndUpdate(senderNodeMap map[string]node) (string, map[st
 }
 
 func sendMsg(con net.Conn, msg string) {
-	responseToSender := make([]byte, 1024)
+	// responseToSender := make([]byte, 1024)
 	fmt.Println("Writing response to sender")
-	con.Write()
+	_, err := con.Write([]byte(msg))
+	checkErr(err)
 }
 
-func sendNodeMap(con net.Conn, nodeMap map[string]node) {
-
+func sendUpdateNodeMap(con net.Conn, nodeMap map[string]node) {
+	enc := gob.NewEncoder(con)
+	err := enc.Encode(nodeMap)
+	checkErr(err)
+	fmt.Println("Server has sent update node map to client!")
 }
 
 //  General helper functions
