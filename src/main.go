@@ -1,20 +1,19 @@
 package main
 
 import (
-	"sync"
 	"time"
 )
 
 type node struct {
-	membership    bool
-	containerName string
+	Membership    bool
+	ContainerName string
 	// nodeID
 	// tokenSet
 	// timeOfIssue int
 }
 
 type gossip struct {
-	mu      sync.Mutex
+	// mu      sync.Mutex
 	nodeMap map[string]node
 }
 

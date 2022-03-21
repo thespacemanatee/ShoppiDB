@@ -6,6 +6,13 @@ Non-seed nodes will not communicate with each other. Can implement this later â€
 randomly select a node in node map to communicate; when starting out, non-seed comm with seed,
 seed will comm with another seed.
 */
+/*
+1. Commit and merge branch
+2. Add logic to compare and update node map
+3. Add logic to randomly select node in node map to comm
+4. Membership history :) Add/Delete new nodes. snapshot of nodeMap with timestamp can be stored onto the db.
+*/
+
 import (
 	"encoding/gob"
 	"fmt"
@@ -47,26 +54,25 @@ func (g *gossip) clientStart() {
 	}
 	// seedNode map
 	seedNodesMap := make(map[string]node)
-	// Initialising nodeMap with seed nodes
-	g.mu.Lock()
+	// Updating nodeMap with seed nodes
 	for _, str := range seedNodesArr {
-		node := node{membership: true, containerName: nodeidToContainerName(str)}
+		node := node{Membership: true, ContainerName: nodeidToContainerName(str)}
 		g.nodeMap[str] = node
 		// Populating seedNode map as well
 		seedNodesMap[str] = node
-
 	}
 	// Periodically select a random seed node to exchange data
 	ticker := time.NewTicker(10 * time.Second)
 	for range ticker.C {
 		seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
 		seedNode := seedNodesMap[seedID]
-		con, err := net.Dial(CONN_TYPE, seedNode.containerName+CONN_PORT)
+		con, err := net.Dial(CONN_TYPE, seedNode.ContainerName+CONN_PORT)
 		checkErr(err)
 		localNode := g.nodeMap[getLocalNodeID()]
 		enc := gob.NewEncoder(con)
 		errEnc := enc.Encode(localNode)
 		checkErr(errEnc)
+		fmt.Println(getLocalContainerName()+" has sent", localNode)
 		con.Close()
 	}
 }
@@ -76,7 +82,7 @@ func (g *gossip) listenMsg(con net.Conn) {
 	var newNode node
 	err := dec.Decode(&newNode)
 	checkErr(err)
-	fmt.Println(newNode)
+	fmt.Println(getLocalContainerName()+" has received", newNode)
 	con.Close()
 }
 
@@ -89,7 +95,7 @@ func getLocalContainerName() string {
 	case "1":
 		output = "node1"
 	case "2":
-		output = "node3"
+		output = "node2"
 	}
 	return output
 }
