@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"time"
 )
 
@@ -13,7 +14,7 @@ type node struct {
 }
 
 type gossip struct {
-	// mu      sync.Mutex
+	mu      sync.Mutex
 	nodeMap map[string]node
 }
 
