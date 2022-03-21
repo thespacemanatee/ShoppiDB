@@ -69,6 +69,8 @@ func (g *gossip) waitForResponse(con net.Conn) {
 	fmt.Println("Waiting for server's response")
 	msgLen, errResp := con.Read(response)
 	checkErr(errResp)
+	// reply := string(response[:msgLen])
+	fmt.Println("Server's response is:", string(response[:msgLen]))
 	if string(response[:msgLen]) == "no" {
 		con.Close()
 	} else {
@@ -77,12 +79,13 @@ func (g *gossip) waitForResponse(con net.Conn) {
 }
 
 func (g *gossip) recvNodes(con net.Conn) {
+	g.mu.Lock()
 	dec := gob.NewDecoder(con)
 	var incNodeMap map[string]node
 	err := dec.Decode(&incNodeMap)
 	checkErr(err)
 	fmt.Println(getLocalContainerName()+" has received", incNodeMap)
-	g.mu.Lock()
+
 	for key, value := range incNodeMap {
 		g.nodeMap[key] = value
 	}
@@ -129,13 +132,14 @@ func (g *gossip) listenMsg(con net.Conn) {
 }
 
 func (g *gossip) compareAndUpdate(senderNodeMap map[string]node) (string, map[string]node) {
+	g.mu.Lock()
 	fmt.Println("senderNodeMap:", senderNodeMap)
 	fmt.Println("myNodeMap:", g.nodeMap)
 	updateForSender := "no"
 	nodeMapForSender := make(map[string]node)
 	commonNodeCounter := 0
 	senderUniqueNodeCounter := 0
-	g.mu.Lock()
+
 	for senderKey, senderValue := range senderNodeMap {
 		if _, found := g.nodeMap[senderKey]; !found {
 			// local nodeMap does not contain the node in sender's nodeMap
