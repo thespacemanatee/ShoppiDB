@@ -68,13 +68,17 @@ func (g *gossip) clientStart() {
 		seedNode := seedNodesMap[seedID]
 		con, err := net.Dial(CONN_TYPE, seedNode.ContainerName+CONN_PORT)
 		checkErr(err)
-		localNode := g.nodeMap[getLocalNodeID()]
-		enc := gob.NewEncoder(con)
-		errEnc := enc.Encode(localNode)
-		checkErr(errEnc)
-		fmt.Println(getLocalContainerName()+" has sent", localNode)
+		g.sendMyNodeData(con)
 		con.Close()
 	}
+}
+
+func (g *gossip) sendMyNodeData(con net.Conn) {
+	localNode := g.nodeMap[getLocalNodeID()]
+	enc := gob.NewEncoder(con)
+	errEnc := enc.Encode(localNode)
+	checkErr(errEnc)
+	fmt.Println(getLocalContainerName()+" has sent", localNode)
 }
 
 func (g *gossip) listenMsg(con net.Conn) {
