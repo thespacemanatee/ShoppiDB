@@ -11,7 +11,7 @@ type Counter int
 
 type Clock struct {
 	Counter     Counter
-	LastUpdated time.Time
+	LastUpdated int64
 }
 
 type VectorClock map[Node]Clock
@@ -22,13 +22,22 @@ type DataObject struct {
 	Version  VectorClock
 }
 
-// UpdateVectorClock updates a node's clock in the object's vector clock
+// NewDataObject returns a new DataObject.
+func NewDataObject(id string, rawData json.RawMessage) DataObject {
+	return DataObject{
+		ObjectId: id,
+		RawData:  rawData,
+		Version:  make(map[Node]Clock),
+	}
+}
+
+// UpdateVectorClock updates a node's clock in the object's vector clock, or generates one if this is a new object.
 func UpdateVectorClock(node Node, vectorClock VectorClock) {
 	if clock, exists := vectorClock[node]; exists {
 		clock.Counter += 1
 		vectorClock[node] = clock
 	} else {
-		vectorClock[node] = Clock{Counter: 1, LastUpdated: time.Now()}
+		vectorClock[node] = Clock{Counter: 1, LastUpdated: time.Now().UnixMilli()}
 	}
 }
 
@@ -37,10 +46,12 @@ func DeConflictDataObjects(a DataObject, b DataObject, dataObjects map[string]Da
 	aIsStale := true
 	bIsStale := true
 
+	// Check if a is stale
 	for node, _ := range a.Version {
 		aIsStale = aIsStale && (a.Version[node].Counter <= b.Version[node].Counter)
 	}
 
+	// Check if b is stale
 	for node, _ := range b.Version {
 		bIsStale = bIsStale && (b.Version[node].Counter <= a.Version[node].Counter)
 	}

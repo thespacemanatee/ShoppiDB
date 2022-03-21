@@ -1,12 +1,18 @@
 package main
 
 import (
+	"ShoppiDB/pkg/data_versioning"
+	"encoding/gob"
 	"fmt"
+	"github.com/k0kubun/pp/v3"
 	"log"
 	"net"
 	"os"
 	"time"
 )
+
+var node data_versioning.Node
+var localDataObject data_versioning.DataObject
 
 func main() {
 	id := os.Getenv("NODE_ID")
@@ -14,12 +20,14 @@ func main() {
 	if err != nil {
 		log.Fatal("server, Listen", err)
 	}
+	node = data_versioning.Node(id)
+	localDataObject = data_versioning.NewDataObject("1", nil)
 	go listenMessage(ln)
 	for {
-		time.Sleep(time.Second * 1)
-		sendMessage(id)
+		data_versioning.UpdateVectorClock(node, localDataObject.Version)
+		time.Sleep(time.Second * 5)
+		sendMessage()
 	}
-	fmt.Println("End of Program")
 }
 
 func listenMessage(ln net.Listener) {
@@ -35,41 +43,36 @@ func listenMessage(ln net.Listener) {
 			fmt.Println("Error accepting: ", err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("client connected")
 		go processClient(connection)
 	}
 }
 
-func sendMessage(id string) {
-	fmt.Println(id)
-	fmt.Println("Sending message")
-	target, msg := getNode(id)
-	time.Sleep(time.Millisecond * 1)
+func sendMessage() {
+	fmt.Printf("Node %s sending message\n", node)
+	target := getNode()
+	time.Sleep(time.Millisecond * 5)
 	con, err := net.Dial("tcp", target)
+	encoder := gob.NewEncoder(con)
+	_ = encoder.Encode(&localDataObject)
 
 	defer con.Close() //Requires to catch the null error when fail to connect before writing
 
 	checkErr(err)
-
-	_, err = con.Write([]byte(msg))
-
-	checkErr(err)
 }
 
-func getNode(id string) (string, string) {
-	switch id {
+func getNode() string {
+	switch node {
+	case "1":
+		return "node2:8080"
+	case "2":
+		return "node1:8080"
 	default:
 		fmt.Println("ERROR ID")
-		return "null", "null"
-	case "1":
-		return "node2:8080", "From node 1"
-	case "2":
-		return "node1:8080", "From node 2"
+		return "null"
 	}
 }
 
 func checkErr(err error) {
-
 	if err != nil {
 		fmt.Println("CONNECTION ERROR")
 		fmt.Println(err)
@@ -77,11 +80,15 @@ func checkErr(err error) {
 }
 
 func processClient(connection net.Conn) {
-	buffer := make([]byte, 1024)
-	mLen, err := connection.Read(buffer)
+	dec := gob.NewDecoder(connection)
+	dataObject := &data_versioning.DataObject{}
+	err := dec.Decode(dataObject)
+	objects := []data_versioning.DataObject{localDataObject, *dataObject}
+	newObjects := data_versioning.GetResponseDataObjects(objects)
+	pp.Printf("Response objects: %+v\n", newObjects)
 	if err != nil {
 		fmt.Println("Error reading:", err.Error())
 	}
-	fmt.Println("Received: ", string(buffer[:mLen]))
-	connection.Close()
+	pp.Printf("Received: %+v\n", dataObject)
+	_ = connection.Close()
 }
