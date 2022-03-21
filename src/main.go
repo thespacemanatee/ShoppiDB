@@ -1,24 +1,32 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	s "strings"
+	"sync"
 	"time"
 )
 
+type node struct {
+	membership    bool
+	containerName string
+	// nodeID
+	// tokenSet
+	// timeOfIssue int
+}
+
+type gossip struct {
+	mu      sync.Mutex
+	nodeMap map[string]node
+}
+
 func main() {
 	// done := make(chan struct{})
+	localNode := node{getMembership(), getLocalContainerName()}
+	gossip := gossip{nodeMap: make(map[string]node)}
 
-	for {
-		seedNodes := os.Getenv("SEEDNODES")
-		seednodes := s.Split(seedNodes, " ")
-		containerName := getContainerName()
-		fmt.Println("NODE ID:", os.Getenv("NODE_ID"))
-		fmt.Println("Membership is", os.Getenv("MEMBERSHIP"))
-		fmt.Println("seedNodes =", seednodes[0], seednodes[1])
-		fmt.Println("my container name is", containerName)
-		fmt.Println("New")
-		time.Sleep(time.Second * 10)
-	}
+	//adding localNode into node map
+	gossip.nodeMap[getLocalNodeID()] = localNode
+
+	go gossip.serverStart()
+	go gossip.clientStart()
+	time.Sleep(time.Second * 300)
 }
