@@ -1,0 +1,41 @@
+version: "3.9"
+services:
+  node1: #DNS name 
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node1
+    restart: always
+    environment:
+      - NODE_ID=1
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src/main.go
+      - SEEDNODES=${SEEDNODES}
+    volumes:
+      - .:/app
+      - devnode1:/redis/volume
+    networks:
+      - db
+  node2: #DNS name 
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node2
+    restart: always
+    environment:
+      - NODE_ID=2
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src/main.go
+      - SEEDNODES=${SEEDNODES}
+    volumes:
+      - .:/app
+      - devnode2:/redis/volume
+    networks:
+      - db
+
+volumes:
+  devnode1:
+  devnode2:
+networks:
+  db:
+    name: db_network
