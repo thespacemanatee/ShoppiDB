@@ -1,87 +1,104 @@
 package main
 
 import (
+	"ShoppiDB/src/replication"
 	"fmt"
-	"log"
-	"net"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
+// type Message struct {
+// 	senderID string `json: "senderID`
+// 	messasge string `json: "message`
+// }
+
 func main() {
-	id := os.Getenv("NODE_ID")
-	ln, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		log.Fatal("server, Listen", err)
+	client := redis.NewClient(&redis.Options{})
+	//case where replication goes around the ring once
+	//node 2 with replicas in 3, 4 and 1
+	// nodeStructure := [4]int{1, 2, 3, 4}
+	// node := Node{os.Getenv("NODE_ID"), 4, 1, 1, nodeStructure,make(map[string]bool), *client}
+	// node.Start()
+	// for {
+	// 	time.Sleep(time.Second * 1)
+	// 	if node.id == strconv.Itoa(2) {
+	// 		node.ReplicateWrites()
+	// 		time.Sleep(time.Second * 10)
+	// 	}
+	// }
+	// fmt.Println("End of Program")
+
+	// case where all nodes are sending replications
+	// nodeStructure := [4]int{1, 2, 3, 4}
+	// node := Node{os.Getenv("NODE_ID"), 4, 1, 1, nodeStructure, make(map[string]bool),*client}
+	// node.Start()
+	// for {
+	// 	time.Sleep(time.Second * 1)
+	// 	node.ReplicateWrites()
+	// 	time.Sleep(time.Second * 10)
+	// }
+	// fmt.Println("End of Program")
+
+	// case where 1 node is sending replication and n=2
+	// nodeStructure := [4]int{1, 2, 3, 4}
+	// node := Node{os.Getenv("NODE_ID"), 2, 1, 1, nodeStructure, make(map[string]bool), *client}
+	// node.Start()
+	// for {
+	// 	time.Sleep(time.Second * 1)
+	// 	if node.id == strconv.Itoa(1) {
+	// 		node.ReplicateWrites()
+	// 		time.Sleep(time.Second * 10)
+	// 	}
+	// }
+	// fmt.Println("End of Program")
+
+	//case where node 2 is sleeping N=3 and node 1 sends, expects node 3 and 4 to receive
+	// nodeStructure := [4]int{1, 2, 3, 4}
+	// node := replication.Node{Id: os.Getenv("NODE_ID"), N: 3, R: 1, W: 4, NodeStructure: nodeStructure, ReplicationCheck: make(map[string]bool), Rbd: *client}
+	// if node.Id != strconv.Itoa(2) {
+	// 	node.Start()
+	// }
+	// sleep := true
+	// for {
+	// 	if node.Id == strconv.Itoa(2) && sleep {
+	// 		time.Sleep(time.Second * 30)
+	// 		sleep = false
+	// 		fmt.Println("NODE WOKE UP")
+	// 		node.Start()
+
+	// 	}
+	// 	if node.Id == strconv.Itoa(1) {
+	// 		time.Sleep(time.Millisecond * 100)
+	// 		node.ReplicateWrites()
+	// 		time.Sleep(time.Second * 10)
+	// 	}
+	// }
+	// fmt.Println("End of Program")
+
+	//case where node 2 and 3 is sleeping n=2 and node 1 sends, N=2, expects node 4 to receive
+	nodeStructure := [4]int{1, 2, 3, 4}
+	node := replication.Node{Id: os.Getenv("NODE_ID"), N: 3, R: 1, W: 4, NodeStructure: nodeStructure, ReplicationCheck: make(map[string]bool), Rbd: *client}
+	if node.Id != strconv.Itoa(2) {
+		node.Start()
 	}
-	go listenMessage(ln)
+	sleep := true
 	for {
-		time.Sleep(time.Second * 1)
-		sendMessage(id)
+		if (node.Id == strconv.Itoa(2) || node.Id == strconv.Itoa(3)) && sleep {
+			time.Sleep(time.Second * 30)
+			sleep = false
+			fmt.Println("NODE WOKE UP")
+			node.Start()
+
+		}
+		if node.Id == strconv.Itoa(1) {
+			time.Sleep(time.Millisecond * 100)
+			node.ReplicateWrites()
+			time.Sleep(time.Second * 10)
+		}
 	}
 	fmt.Println("End of Program")
-}
 
-func listenMessage(ln net.Listener) {
-	fmt.Println("Start listening")
-	// accept connection
-	defer ln.Close()
-	fmt.Println("Listening on :8080")
-	fmt.Println("Waiting for client...")
-	for {
-		// get message, output
-		connection, err := ln.Accept()
-		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
-			os.Exit(1)
-		}
-		fmt.Println("client connected")
-		go processClient(connection)
-	}
-}
-
-func sendMessage(id string) {
-	fmt.Println(id)
-	fmt.Println("Sending message")
-	target, msg := getNode(id)
-	time.Sleep(time.Millisecond * 1)
-	con, err := net.Dial("tcp", target)
-
-	defer con.Close() //Requires to catch the null error when fail to connect before writing
-
-	checkErr(err)
-
-	_, err = con.Write([]byte(msg))
-
-	checkErr(err)
-}
-
-func getNode(id string) (string, string) {
-	switch id {
-	default:
-		fmt.Println("ERROR ID")
-		return "null", "null"
-	case "1":
-		return "node2:8080", "From node 1"
-	case "2":
-		return "node1:8080", "From node 2"
-	}
-}
-
-func checkErr(err error) {
-
-	if err != nil {
-		fmt.Println("CONNECTION ERROR")
-		fmt.Println(err)
-	}
-}
-
-func processClient(connection net.Conn) {
-	buffer := make([]byte, 1024)
-	mLen, err := connection.Read(buffer)
-	if err != nil {
-		fmt.Println("Error reading:", err.Error())
-	}
-	fmt.Println("Received: ", string(buffer[:mLen]))
-	connection.Close()
 }
