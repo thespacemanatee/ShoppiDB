@@ -74,7 +74,7 @@ func (node *Node) processClient(connection net.Conn) {
 	} else if strings.Contains(receivedMsg, "hintedHandoff") {
 		msg := strings.Split(receivedMsg, "hintedHandoff")
 		fmt.Println("hinted handoff data " + msg[1])
-		go node.handleHandoff(sourceAddr, msg[1], sourceAddr+" handoff data")
+		go node.handleHandoff(node.getOwnAdress(), msg[1], node.getOwnAdress()+" handoff data")
 	} else {
 		fmt.Println("Node: "+(node.Id)+" Received: ", data)
 		go node.handleResponse(sourceAddr, receivedMsg)
