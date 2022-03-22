@@ -2,86 +2,95 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net"
 	"os"
+	"strconv"
 	"time"
+
+	byzantine "ShoppiDB/pkg/byzantine"
+	http_api "ShoppiDB/pkg/http_api"
 )
 
 func main() {
 	id := os.Getenv("NODE_ID")
-	ln, err := net.Listen("tcp", ":8080")
+	go http_api.StartHTTPServer()
+	// ln, err := net.Listen("tcp", ":8080")
+	// if err != nil {
+	// 	log.Fatal("server, Listen", err)
+	// }
+	// go listenMessage(ln)
+	// for {
+	// 	time.Sleep(time.Second * 1)
+	// 	sendMessage(id)
+	// }
+	httpClient := http_api.GetHTTPClient()
+	var nodeIds []int
+	nodeId, err := strconv.Atoi(getNode(id))
 	if err != nil {
-		log.Fatal("server, Listen", err)
+		fmt.Println("ISSUE WITH CLIENT NODE ID")
 	}
-	go listenMessage(ln)
+	nodeIds = append(nodeIds, nodeId)
+	clientId, err := strconv.Atoi(id)
+	if err != nil {
+		fmt.Println("ISSUE WITH ENV NODE ID")
+	}
 	for {
-		time.Sleep(time.Second * 1)
-		sendMessage(id)
-	}
-	fmt.Println("End of Program")
-}
-
-func listenMessage(ln net.Listener) {
-	fmt.Println("Start listening")
-	// accept connection
-	defer ln.Close()
-	fmt.Println("Listening on :8080")
-	fmt.Println("Waiting for client...")
-	for {
-		// get message, output
-		connection, err := ln.Accept()
-		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
-			os.Exit(1)
-		}
-		fmt.Println("client connected")
-		go processClient(connection)
+		time.Sleep(time.Second * 5)
+		byzantine.SendByzantineInitiateRead(httpClient, clientId, nodeIds, id)
 	}
 }
 
-func sendMessage(id string) {
-	fmt.Println(id)
-	fmt.Println("Sending message")
-	target, msg := getNode(id)
-	time.Sleep(time.Millisecond * 1)
-	con, err := net.Dial("tcp", target)
+// func listenMessage(ln net.Listener) {
+// 	fmt.Println("Start listening")
+// 	// accept connection
+// 	defer ln.Close()
+// 	fmt.Println("Listening on :8080")
+// 	fmt.Println("Waiting for client...")
+// 	for {
+// 		// get message, output
+// 		connection, err := ln.Accept()
+// 		if err != nil {
+// 			fmt.Println("Error accepting: ", err.Error())
+// 			os.Exit(1)
+// 		}
+// 		fmt.Println("client connected")
+// 		go processClient(connection)
+// 	}
+// }
 
-	defer con.Close()
+// func sendMessage(id string) {
+// 	fmt.Println(id)
+// 	fmt.Println("Sending message")
+// 	target, msg := getNode(id)
+// 	time.Sleep(time.Millisecond * 1)
+// 	con, err := net.Dial("tcp", target)
 
-	checkErr(err)
+// 	defer con.Close()
 
-	_, err = con.Write([]byte(msg))
+// 	checkErr(err)
 
-	checkErr(err)
-}
+// 	_, err = con.Write([]byte(msg))
 
-func getNode(id string) (string, string) {
+// 	checkErr(err)
+// }
+
+func getNode(id string) string {
 	switch id {
 	default:
 		fmt.Println("ERROR ID")
-		return "null", "null"
+		return "1"
 	case "1":
-		return "node2:8080", "From node 1"
+		return "2"
 	case "2":
-		return "node1:8080", "From node 2"
+		return "1"
 	}
 }
 
-func checkErr(err error) {
-
-	if err != nil {
-		fmt.Println("CONNECTION ERROR")
-		fmt.Println(err)
-	}
-}
-
-func processClient(connection net.Conn) {
-	buffer := make([]byte, 1024)
-	mLen, err := connection.Read(buffer)
-	if err != nil {
-		fmt.Println("Error reading:", err.Error())
-	}
-	fmt.Println("Received: ", string(buffer[:mLen]))
-	connection.Close()
-}
+// func processClient(connection net.Conn) {
+// 	buffer := make([]byte, 1024)
+// 	mLen, err := connection.Read(buffer)
+// 	if err != nil {
+// 		fmt.Println("Error reading:", err.Error())
+// 	}
+// 	fmt.Println("Received: ", string(buffer[:mLen]))
+// 	connection.Close()
+// }
