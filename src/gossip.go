@@ -22,7 +22,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -32,13 +31,17 @@ const (
 	CONN_TYPE = "tcp"
 )
 
+/*
+CLIENT
+*/
+
 func (g *gossip) clientStart() {
 	// get seed nodes []string
 	seedNodesArr := getSeedNodes()
-	// if node is seednode, don't need to send to itself.
+	// if node is seednode, sleep for a min before communicating with other nodes
 	for _, nodeID := range seedNodesArr {
 		if getLocalNodeID() == nodeID {
-			runtime.Goexit()
+			time.Sleep(time.Minute)
 		}
 	}
 	// seedNode map
@@ -52,14 +55,26 @@ func (g *gossip) clientStart() {
 	}
 	// Periodically select a random seed node to exchange data
 	ticker := time.NewTicker(10 * time.Second)
-	for range ticker.C {
-		// Can consider having this being run on a goroutine, but implement it such that the client don't dial to the same node successively in a row
-		seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
-		seedNode := seedNodesMap[seedID]
-		con, err := net.Dial(CONN_TYPE, seedNode.ContainerName+CONN_PORT)
-		checkErr(err)
-		g.sendMyNodeMap(con)
-		g.waitForResponse(con)
+	timer := time.NewTimer(time.Minute)
+	for {
+		var stop bool 
+		select {
+		case <-ticker.C:
+			// Can consider having this being run on a goroutine, but implement it such that the client don't dial to the same node successively in a row
+			seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
+			seedNode := seedNodesMap[seedID]
+			con, err := net.Dial(CONN_TYPE, seedNode.ContainerName+CONN_PORT)
+			checkErr(err)
+			g.sendMyNodeMap(con)
+			g.waitForResponse(con)
+		case <-timer.C:
+			ticker.Stop()
+		}
+		if 
+	}
+	ticker2 := time.NewTicker(10 * time.Second)
+	for range <-ticker2.C {
+
 	}
 }
 
@@ -102,6 +117,10 @@ func (g *gossip) sendMyNodeMap(con net.Conn) {
 	checkErr(errEnc)
 	fmt.Println(getLocalContainerName()+" has sent", myNodeMap)
 }
+
+/*
+SERVER
+*/
 
 func (g *gossip) serverStart() {
 	fmt.Println("Starting server...")

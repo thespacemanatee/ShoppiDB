@@ -28,5 +28,5 @@ func main() {
 
 	go gossip.serverStart()
 	go gossip.clientStart()
-	time.Sleep(time.Second * 300)
+	time.Sleep(time.Minute * 5)
 }
