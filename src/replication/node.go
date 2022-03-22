@@ -49,15 +49,21 @@ func (node *Node) listenMessage(ln net.Listener) {
 }
 
 func (node *Node) processClient(connection net.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovering from panic", r)
+			connection.Close()
+		}
+	}()
 	buffer := make([]byte, 1024)
 	mLen, err := connection.Read(buffer)
 	if err != nil {
 		fmt.Println("Error reading:", err.Error())
 	}
 	data := string(buffer[:mLen])
-	receivedParts := strings.Split(data, " ")
-	sourceAddr := strings.TrimSpace(receivedParts[0])
-	receivedMsg := strings.TrimSpace(receivedParts[1])
+	splitMsg := strings.Split(data, " ")
+	sourceAddr := strings.TrimSpace(splitMsg[0])
+	receivedMsg := strings.TrimSpace(splitMsg[1])
 	if receivedMsg == "failed" {
 		fmt.Println("Node: "+(node.Id)+" Received: ", data)
 		fmt.Println("Node: " + (node.Id) + " FAILED")
@@ -65,22 +71,61 @@ func (node *Node) processClient(connection net.Conn) {
 		fmt.Println("Node: "+(node.Id)+" Received: ", data)
 		fmt.Println("Node: " + (node.Id) + " SUCCESS")
 		node.ReplicationCheck[sourceAddr] = true
-	} else if receivedMsg == "hintedHandoff" {
-		go handleHandoff()
-	}	else {
+	} else if strings.Contains(receivedMsg, "hintedHandoff") {
+		msg := strings.Split(receivedMsg, "hintedHandoff")
+		fmt.Println("hinted handoff data " + msg[1])
+		go node.handleHandoff(sourceAddr, msg[1], sourceAddr+" handoff data")
+	} else {
 		fmt.Println("Node: "+(node.Id)+" Received: ", data)
-		ctx := context.TODO()
-		dbErr := node.Rbd.Set(ctx, receivedMsg, receivedMsg, time.Second*5).Err()
-		var msg string
-		if dbErr != nil {
-			msg = "failed"
-		} else {
-			msg = "success"
-		}
-		fmt.Println(msg)
-		go replyMessage(sourceAddr, node.getOwnAdress()+" "+msg)
+		go node.handleResponse(sourceAddr, receivedMsg)
 	}
 	connection.Close()
+}
+
+func (node *Node) ReplicateWrites() {
+	fmt.Println("Node: " + (node.Id) + " begining replication")
+	id, err := strconv.Atoi(node.Id)
+	if err != nil {
+		fmt.Println(err)
+	}
+	node.ReplicationCheck = make(map[string]bool)
+	failedConnections := 0
+	failedTargets := []string{}
+	targets, msg := node.getNodes(node.N-1, id+1, true)
+	for _, target := range targets {
+		res, t := handleReplicationConnection(target, msg)
+		if res == 1 {
+			failedTargets = append(failedTargets, t)
+		}
+		failedConnections += res
+	}
+	// handle failed connections by trying more nodes in the preference list
+	startingPt := node.N + id
+	count := 0
+	for {
+		newTargets, newMsg := node.getNodes(failedConnections, startingPt, false)
+		for _, target := range newTargets {
+			res, _ := handleReplicationConnection(target, newMsg+failedTargets[count])
+			if res == 0 {
+				count++
+				failedConnections--
+				if startingPt == id {
+					fmt.Println("not enough nodes available")
+					break
+				}
+			} else {
+				startingPt++
+			}
+		}
+		if failedConnections == 0 {
+			break
+		}
+	}
+	time.Sleep(time.Second * 3)
+	fmt.Println("THIS IS THE RESULTS")
+	fmt.Println(node.ReplicationCheck)
+	res := node.checkWriteQuorum()
+	fmt.Println(res)
 }
 
 func replyMessage(nodeAddress string, msg string) {
@@ -97,53 +142,12 @@ func replyMessage(nodeAddress string, msg string) {
 	checkErr(err)
 }
 
-func (node *Node) ReplicateWrites() {
-	fmt.Println("Node: " + (node.Id) + " begining replication")
-	node.ReplicationCheck = make(map[string]bool)
-	failedConnections := 0
-	// target and msg needs to change to take into account the various nodes to send
-	targets, msg := node.getNode()
-	time.Sleep(time.Millisecond * 1)
-	for _, target := range targets {
-		res := handleReplicationConnection(target, msg)
-		failedConnections += res
-	}
-	// get the next few nodes due to failure
-	id, err := strconv.Atoi(node.Id)
-	if err != nil {
-		fmt.Println(err)
-	}
-	startingPt := node.N + id
-	for {
-		newTargets, _ := node.getMoreNodes(failedConnections, startingPt)
-		for _, target := range newTargets {
-			res := handleReplicationConnection(target, msg)
-			if res == 0 {
-				failedConnections--
-				startingPt++
-				if startingPt == id {
-					fmt.Println("not enough nodes available")
-					break
-				}
-			}
-		}
-		if failedConnections == 0 {
-			break
-		}
-	}
-
-	time.Sleep(time.Second * 5)
-	fmt.Println("THIS IS THE RESULTS")
-	fmt.Println(node.ReplicationCheck)
-	res := node.checkWriteQuorum()
-	fmt.Println(res)
-}
-
-func handleReplicationConnection(target string, msg string) (failedConn int) {
+func handleReplicationConnection(target string, msg string) (failedConn int, failedTarget string) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("panic occured", r)
 			failedConn = 1
+			failedTarget = target
 		}
 	}()
 	fmt.Println("This is the target: " + target)
@@ -152,18 +156,17 @@ func handleReplicationConnection(target string, msg string) (failedConn int) {
 	defer con.Close() //Requires to catch the null error when fail to connect before writing
 	_, err = con.Write([]byte(msg))
 	checkErr(err)
-	return 0
+	return 0, "passed"
 }
 
 func checkErr(err error) {
-
 	if err != nil {
 		fmt.Println("CONNECTION ERROR")
 		fmt.Println(err)
 	}
 }
 
-func (node *Node) getMoreNodes(numNodes int, startingPt int) ([]string, string) {
+func (node *Node) getNodes(numNodes int, startingPt int, isReplication bool) ([]string, string) {
 	nodesTosend := make([]string, numNodes)
 	count := 0
 	passedLastNode := false
@@ -201,57 +204,10 @@ func (node *Node) getMoreNodes(numNodes int, startingPt int) ([]string, string) 
 		}
 		count++
 	}
-	return nodesTosend, node.getOwnAdress() + " " + "hintedHandoff"
-}
-
-func (node *Node) getNode() ([]string, string) {
-	// depending on n value
-	nodesTosend := make([]string, node.N-1) // -1 because one copy stored locally
-	passedLastNode := false
-	for i := 1; i < node.N; i++ {
-		nodeID, err := strconv.Atoi(node.Id)
-		// supposed to modulo the total number of nodes but ring structure not available
-		fmt.Println("This is nodeID + i % n" + strconv.Itoa((nodeID+i)%(len(node.NodeStructure)+1)))
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			switch strconv.Itoa((nodeID + i) % (len(node.NodeStructure) + 1)) {
-			default:
-				fmt.Println("ERROR ID")
-				//nodesTosend[i-1] = "null"
-			case "0":
-				nodesTosend[i-1] = "node1:8080"
-				passedLastNode = true
-			case "1":
-				if !passedLastNode {
-					nodesTosend[i-1] = "node1:8080"
-				} else {
-					nodesTosend[i-1] = "node2:8080"
-				}
-			case "2":
-				if !passedLastNode {
-					nodesTosend[i-1] = "node2:8080"
-				} else {
-					nodesTosend[i-1] = "node3:8080"
-				}
-			case "3":
-				if !passedLastNode {
-					nodesTosend[i-1] = "node3:8080"
-				} else {
-					nodesTosend[i-1] = "node4:8080"
-				}
-			case "4":
-				if !passedLastNode {
-					nodesTosend[i-1] = "node4:8080"
-				} else {
-					nodesTosend[i-1] = "node1:8080"
-				}
-			}
-		}
+	if isReplication {
+		return nodesTosend, node.getOwnAdress() + " " + "replication"
 	}
-	fmt.Println("nodes to send ")
-	fmt.Println(nodesTosend)
-	return nodesTosend, node.getOwnAdress() + " " + "replication"
+	return nodesTosend, node.getOwnAdress() + " " + "hintedHandoff"
 }
 
 func (node *Node) checkWriteQuorum() bool {
@@ -284,4 +240,36 @@ func (node *Node) getOwnAdress() string {
 	case "4":
 		return "node4:8080"
 	}
+}
+
+func (node *Node) handleHandoff(sourceAddr string, intendedRecipient, receivedMsg string) {
+	ctx := context.TODO()
+	dbErr := node.Rbd.Set(ctx, receivedMsg, receivedMsg, 0).Err()
+	var msg string
+	if dbErr != nil {
+		msg = "failed"
+	} else {
+		msg = "success"
+	}
+	go replyMessage(sourceAddr, node.getOwnAdress()+" "+msg)
+	for {
+		res, _ := handleReplicationConnection(intendedRecipient, receivedMsg)
+		if res == 0 {
+			break
+		}
+		time.Sleep(time.Second * 2)
+	}
+
+}
+
+func (node *Node) handleResponse(sourceAddr string, receivedMsg string) {
+	ctx := context.TODO()
+	dbErr := node.Rbd.Set(ctx, receivedMsg, receivedMsg, time.Second*5).Err()
+	var msg string
+	if dbErr != nil {
+		msg = "failed"
+	} else {
+		msg = "success"
+	}
+	go replyMessage(sourceAddr, node.getOwnAdress()+" "+msg)
 }

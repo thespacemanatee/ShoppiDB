@@ -80,24 +80,34 @@ func main() {
 
 	//case where node 2 and 3 is sleeping n=2 and node 1 sends, N=2, expects node 4 to receive
 	nodeStructure := [4]int{1, 2, 3, 4}
-	node := replication.Node{Id: os.Getenv("NODE_ID"), N: 3, R: 1, W: 4, NodeStructure: nodeStructure, ReplicationCheck: make(map[string]bool), Rbd: *client}
-	if node.Id != strconv.Itoa(2) {
-		node.Start()
+	node := replication.Node{Id: os.Getenv("NODE_ID"), N: 2, R: 1, W: 4, NodeStructure: nodeStructure, ReplicationCheck: make(map[string]bool), Rbd: *client}
+	if node.Id != strconv.Itoa(3) {
+		if node.Id != strconv.Itoa(2) {
+			node.Start()
+		}
 	}
 	sleep := true
+	if node.Id == strconv.Itoa(3) && sleep {
+		fmt.Print("NODE SLEEPING")
+		time.Sleep(time.Second * 10)
+		sleep = false
+		fmt.Println("NODE WOKE UP")
+		node.Start()
+	}
+	if node.Id == strconv.Itoa(2) && sleep {
+		fmt.Print("NODE SLEEPING")
+		time.Sleep(time.Second * 10)
+		sleep = false
+		fmt.Println("NODE WOKE UP")
+		node.Start()
+	}
+	if node.Id == strconv.Itoa(1) {
+		time.Sleep(time.Millisecond * 100)
+		node.ReplicateWrites()
+		time.Sleep(time.Second * 1)
+	}
 	for {
-		if (node.Id == strconv.Itoa(2) || node.Id == strconv.Itoa(3)) && sleep {
-			time.Sleep(time.Second * 30)
-			sleep = false
-			fmt.Println("NODE WOKE UP")
-			node.Start()
 
-		}
-		if node.Id == strconv.Itoa(1) {
-			time.Sleep(time.Millisecond * 100)
-			node.ReplicateWrites()
-			time.Sleep(time.Second * 10)
-		}
 	}
 	fmt.Println("End of Program")
 
