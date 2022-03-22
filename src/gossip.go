@@ -187,6 +187,10 @@ func getLocalContainerName() string {
 		output = "node1"
 	case "2":
 		output = "node2"
+	case "3":
+		output = "node3"
+	case "4":
+		output = "node4"
 	}
 	return output
 }
@@ -204,6 +208,10 @@ func nodeidToContainerName(nodeid string) string {
 		containerName = "node1"
 	case "2":
 		containerName = "node2"
+	case "3":
+		containerName = "node3"
+	case "4":
+		containerName = "node4"
 	}
 	return containerName
 }
