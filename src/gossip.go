@@ -127,6 +127,7 @@ func (g *gossip) listenMsg(con net.Conn) {
 	updateForSender, returningNodeMap := g.compareAndUpdate(senderNodeMap)
 	sendMsg(con, updateForSender)
 	if updateForSender == "yes" {
+		// Need to give some time for message to be fully sent through the tcp conn
 		time.Sleep(time.Millisecond * 50)
 		sendUpdateNodeMap(con, returningNodeMap)
 	}
