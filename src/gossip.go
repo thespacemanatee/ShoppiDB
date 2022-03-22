@@ -44,20 +44,14 @@ func (g *gossip) clientStart() {
 			time.Sleep(time.Minute)
 		}
 	}
-	// seedNode map
-	seedNodesMap := make(map[string]node)
 	// Updating nodeMap with seed nodes
-	for _, str := range seedNodesArr {
-		node := node{Membership: true, ContainerName: nodeidToContainerName(str)}
-		g.nodeMap[str] = node
-		// Populating seedNode map as well
-		seedNodesMap[str] = node
-	}
+	seedNodesMap := g.populate(seedNodesArr)
+
 	// Periodically select a random seed node to exchange data
 	ticker := time.NewTicker(10 * time.Second)
 	timer := time.NewTimer(time.Minute)
+loop1:
 	for {
-		var stop bool 
 		select {
 		case <-ticker.C:
 			// Can consider having this being run on a goroutine, but implement it such that the client don't dial to the same node successively in a row
@@ -69,24 +63,49 @@ func (g *gossip) clientStart() {
 			g.waitForResponse(con)
 		case <-timer.C:
 			ticker.Stop()
+			break loop1
 		}
-		if 
 	}
 	ticker2 := time.NewTicker(10 * time.Second)
-	for range <-ticker2.C {
-
+	for range ticker2.C {
+		randNode := g.getRandNode()
+		con, err := net.Dial(CONN_TYPE, randNode.ContainerName+CONN_PORT)
+		checkErr(err)
+		g.sendMyNodeMap(con)
+		g.waitForResponse(con)
 	}
 }
 
 // Helper functions for gossip.clientStart
+func (g *gossip) populate(seedNodesArray []string) map[string]node {
+	g.mu.Lock()
+	seedNodesMap := make(map[string]node)
+	for _, str := range seedNodesArray {
+		node := node{Membership: true, ContainerName: nodeidToContainerName(str)}
+		g.nodeMap[str] = node
+		// Populating seedNode map as well
+		seedNodesMap[str] = node
+	}
+	g.mu.Unlock()
+	return seedNodesMap
+}
+
+func (g *gossip) getRandNode() node {
+	g.mu.Lock()
+	randomInt := rand.Intn(len(g.nodeMap))
+	fmt.Println("string(randomInt):", string(randomInt))
+	randNode := g.nodeMap[string(randomInt)]
+	return randNode
+}
+
 func (g *gossip) waitForResponse(con net.Conn) {
 	response := make([]byte, 1024)
 	fmt.Println("Waiting for server's response")
 	msgLen, errResp := con.Read(response)
 	checkErr(errResp)
-	// reply := string(response[:msgLen])
-	fmt.Println("Server's response is:", string(response[:msgLen]))
-	if string(response[:msgLen]) == "no" {
+	reply := string(response[:msgLen])
+	fmt.Println("Server's response is:", reply)
+	if reply == "no" {
 		con.Close()
 	} else {
 		g.recvNodes(con)
@@ -127,13 +146,11 @@ func (g *gossip) serverStart() {
 	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
 	checkErr(err)
 	defer dataStream.Close()
-
 	for {
 		con, err := dataStream.Accept()
 		checkErr(err)
 		go g.listenMsg(con)
 	}
-
 }
 
 //Helper functions for gossip.serverStart
@@ -146,6 +163,8 @@ func (g *gossip) listenMsg(con net.Conn) {
 	updateForSender, returningNodeMap := g.compareAndUpdate(senderNodeMap)
 	sendMsg(con, updateForSender)
 	if updateForSender == "yes" {
+		// Need to give some time for message to be fully sent through the tcp conn
+		time.Sleep(time.Millisecond * 50)
 		sendUpdateNodeMap(con, returningNodeMap)
 	}
 }
