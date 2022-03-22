@@ -67,11 +67,11 @@ func (g *gossip) clientStart() {
 func (g *gossip) waitForResponse(con net.Conn) {
 	response := make([]byte, 1024)
 	fmt.Println("Waiting for server's response")
-	msgLen, errResp := con.Read(response)
+	mlen, errResp := con.Read(response)
 	checkErr(errResp)
-	// reply := string(response[:msgLen])
-	fmt.Println("Server's response is:", string(response[:msgLen]))
-	if string(response[:msgLen]) == "no" {
+	reply := string(response[:mlen])
+	fmt.Println("Server's response is:", reply)
+	if reply == "no" {
 		con.Close()
 	} else {
 		g.recvNodes(con)
@@ -127,6 +127,7 @@ func (g *gossip) listenMsg(con net.Conn) {
 	updateForSender, returningNodeMap := g.compareAndUpdate(senderNodeMap)
 	sendMsg(con, updateForSender)
 	if updateForSender == "yes" {
+		time.Sleep(time.Millisecond * 50)
 		sendUpdateNodeMap(con, returningNodeMap)
 	}
 }
