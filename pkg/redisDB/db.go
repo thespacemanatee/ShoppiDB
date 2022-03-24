@@ -44,5 +44,4 @@ func exampleDB() {
 	} else {
 		fmt.Println("key2", val2)
 	}
-
 }
