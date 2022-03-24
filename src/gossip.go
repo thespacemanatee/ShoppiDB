@@ -63,6 +63,9 @@ loop1:
 			g.waitForResponse(con)
 		case <-timer.C:
 			ticker.Stop()
+			fmt.Println("/n")
+			fmt.Println("PARTY TIME")
+			fmt.Println("/n")
 			break loop1
 		}
 	}
@@ -95,6 +98,7 @@ func (g *gossip) getRandNode() node {
 	randomInt := rand.Intn(len(g.nodeMap))
 	fmt.Println("string(randomInt):", string(randomInt))
 	randNode := g.nodeMap[string(randomInt)]
+	g.mu.Unlock()
 	return randNode
 }
 
