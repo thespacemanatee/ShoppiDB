@@ -11,11 +11,11 @@ import (
 )
 
 type ByzantineMessage struct {
-	read  bool
-	dest  int
-	key   string
-	value string
-	nonce string
+	Read  bool   `json:"read"`
+	Dest  int    `json:"dest"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
+	Nonce string `json:"nonce"`
 }
 
 // func sendByzantineRequest(input string) (string, error) {
@@ -43,9 +43,9 @@ func sendByzantineReadRequest(httpClient *http.Client, client int, nodeId int, k
 	target := "http://node" + strconv.Itoa(nodeId) + ":8080/byzantine"
 	nonce := generateNonce()
 	//updateNonce(nonce)
-	msg := ByzantineMessage{read: true, dest: client, key: keyString, nonce: nonce}
+	msg := ByzantineMessage{Read: true, Dest: client, Key: keyString, Nonce: nonce}
 	byzantineMessageJson, err := json.Marshal(msg)
-	req, err := http.NewRequest("POST", target, bytes.NewBuffer(byzantineMessageJson))
+	req, err := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(byzantineMessageJson))
 	checkErr(err)
 	req.Header.Set("Content-Type", "application/json")
 	fmt.Println(req)
