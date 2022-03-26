@@ -14,8 +14,6 @@ import (
 func main() {
 	id := os.Getenv("NODE_ID")
 	seedNodes := os.Getenv("SEEDNODES")
-	// ring := conHashing.NewRing(MAX_KEY)
-	const maxNodes = 100
 	node := conHashing.NewNode(id, strings.Split(seedNodes, ","))
 
 	// wait for messages
@@ -53,12 +51,12 @@ func listenMessage(ln net.Listener, node conHashing.Node) {
 
 func sendMessage(node conHashing.Node) {
 	var id = node.ID
-	hash := conHashing.GetMD5Hash(id)
+	var hash = conHashing.GetMD5Hash(id)
 	fmt.Println(hash)
 	fmt.Println(id, "Sending message")
 	// fmt.Println("Sending message")
 	target, msg := getNode(id, node)
-	time.Sleep(time.Millisecond * 1)
+	time.Sleep(time.Second * 1)
 	con, err := net.Dial("tcp", target)
 
 	if err != nil {
@@ -94,7 +92,7 @@ func getNode(id string, node conHashing.Node) (string, []string) {
 *	seed node - return list of seed nodes, NodeRingPositions []
 *
 * @return an iterator over all the tuples stored in this DbFile.
- */
+*/
 func generateMessage(node conHashing.Node) []string {
 	var isSeed = node.IsSeed
 	switch isSeed {
@@ -105,7 +103,7 @@ func generateMessage(node conHashing.Node) []string {
 		return []string{node.ID, strconv.Itoa(node.Ring.MaxID)}
 	case false:
 		//when node first joined, ask for ring position
-		return []string{node.ID, "sdj sdjnsn"}
+		return []string{node.ID, "test data"}
 	}
 
 }
