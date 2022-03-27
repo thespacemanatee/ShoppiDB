@@ -21,6 +21,7 @@ services:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node1
+    restart: always
     environment:
       - NODE_ID=1
       - RACE_DETECTOR=1
@@ -37,6 +38,7 @@ services:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node2
+    restart: always
     environment:
       - NODE_ID=2
       - RACE_DETECTOR=1
