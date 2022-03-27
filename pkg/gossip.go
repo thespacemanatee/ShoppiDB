@@ -1,11 +1,5 @@
-package main
+package gossip
 
-// Lacking a func to compare and update the nodeMaps
-/* For now, the non-seed nodes will periodically communicate with the seed nodes to update node map.
-Non-seed nodes will not communicate with each other. Can implement this later –>
-randomly select a node in node map to communicate; when starting out, non-seed comm with seed,
-seed will comm with another seed.
-*/
 /*
 1. Commit and merge branch
 2. Add logic to compare and update node map
