@@ -1,18 +1,7 @@
 package gossip
 
 /*
-1. Commit and merge branch
-2. Add logic to compare and update node map
-	- sender sends its node map, receiver will compare, add nodes that it does not have to its nodeMap, and sends nodes that sender does not have to sender in the form
-	of a nodeMap as well.
-	- check if a certain key-value pair is in the node map.
-3. Add logic to randomly select node in node map to comm
 4. Membership history :) Add/Delete new nodes. snapshot of nodeMap with timestamp can be stored onto the db.
-*/
-
-/* Currently, the seed nodes will talk to each other for 1 minute after waking up from the 1 min rest.
-There's no need for the seed nodes to execute that part, so the seed nodes should skip that part
-and jump to randomly communicating with other nodes inc non-seed nodes.
 */
 
 import (
@@ -22,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -30,17 +20,30 @@ const (
 	CONN_TYPE = "tcp"
 )
 
+type Node struct {
+	Membership    bool
+	ContainerName string
+	// nodeID
+	// tokenSet
+	// timeOfIssue int
+}
+
+type Gossip struct {
+	mu      sync.Mutex
+	NodeMap map[string]Node
+}
+
 /*
 CLIENT
 */
 
-func (g *gossip) clientStart() {
+func (g *Gossip) ClientStart() {
 	// get seed nodes []string
 	seedNodesArr := getSeedNodes()
 	// if node is seednode, sleep for a min before communicating with other nodes
 	isSeedNode := false
 	for _, nodeID := range seedNodesArr {
-		if getLocalNodeID() == nodeID {
+		if GetLocalNodeID() == nodeID {
 			isSeedNode = true
 			fmt.Println("I am seed node!")
 			time.Sleep(time.Minute)
@@ -91,12 +94,12 @@ func (g *gossip) clientStart() {
 }
 
 // Helper functions for gossip.clientStart
-func (g *gossip) populate(seedNodesArray []string) map[string]node {
+func (g *Gossip) populate(seedNodesArray []string) map[string]Node {
 	g.mu.Lock()
-	seedNodesMap := make(map[string]node)
+	seedNodesMap := make(map[string]Node)
 	for _, str := range seedNodesArray {
-		node := node{Membership: true, ContainerName: nodeidToContainerName(str)}
-		g.nodeMap[str] = node
+		node := Node{Membership: true, ContainerName: nodeidToContainerName(str)}
+		g.NodeMap[str] = node
 		// Populating seedNode map as well
 		seedNodesMap[str] = node
 	}
@@ -104,16 +107,16 @@ func (g *gossip) populate(seedNodesArray []string) map[string]node {
 	return seedNodesMap
 }
 
-func (g *gossip) getRandNode() node {
+func (g *Gossip) getRandNode() Node {
 	g.mu.Lock()
-	randomInt := rand.Intn(len(g.nodeMap))
+	randomInt := rand.Intn(len(g.NodeMap))
 	fmt.Println("string(randomInt):", string(randomInt))
-	randNode := g.nodeMap[string(randomInt)]
+	randNode := g.NodeMap[string(randomInt)]
 	g.mu.Unlock()
 	return randNode
 }
 
-func (g *gossip) waitForResponse(con net.Conn) {
+func (g *Gossip) waitForResponse(con net.Conn) {
 	response := make([]byte, 1024)
 	fmt.Println("Waiting for server's response")
 	msgLen, errResp := con.Read(response)
@@ -127,36 +130,36 @@ func (g *gossip) waitForResponse(con net.Conn) {
 	}
 }
 
-func (g *gossip) recvNodes(con net.Conn) {
+func (g *Gossip) recvNodes(con net.Conn) {
 	g.mu.Lock()
 	dec := gob.NewDecoder(con)
-	var incNodeMap map[string]node
+	var incNodeMap map[string]Node
 	err := dec.Decode(&incNodeMap)
 	checkErr(err)
-	fmt.Println(getLocalContainerName()+" has received", incNodeMap)
+	fmt.Println(GetLocalContainerName()+" has received", incNodeMap)
 
 	for key, value := range incNodeMap {
-		g.nodeMap[key] = value
+		g.NodeMap[key] = value
 	}
 	g.mu.Unlock()
 	con.Close()
 }
 
-func (g *gossip) sendMyNodeMap(con net.Conn) {
+func (g *Gossip) sendMyNodeMap(con net.Conn) {
 	// localNode := g.nodeMap[getLocalNodeID()]
-	myNodeMap := deepCopyMap(g.nodeMap)
+	myNodeMap := deepCopyMap(g.NodeMap)
 	// myNodeMap := g.nodeMap //pass by value
 	enc := gob.NewEncoder(con)
 	errEnc := enc.Encode(myNodeMap)
 	checkErr(errEnc)
-	fmt.Println(getLocalContainerName()+" has sent", myNodeMap)
+	fmt.Println(GetLocalContainerName()+" has sent", myNodeMap)
 }
 
 /*
 SERVER
 */
 
-func (g *gossip) serverStart() {
+func (g *Gossip) ServerStart() {
 	fmt.Println("Starting server...")
 	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
 	checkErr(err)
@@ -169,12 +172,12 @@ func (g *gossip) serverStart() {
 }
 
 //Helper functions for gossip.serverStart
-func (g *gossip) listenMsg(con net.Conn) {
+func (g *Gossip) listenMsg(con net.Conn) {
 	dec := gob.NewDecoder(con)
-	var senderNodeMap map[string]node
+	var senderNodeMap map[string]Node
 	err := dec.Decode(&senderNodeMap)
 	checkErr(err)
-	fmt.Println(getLocalContainerName()+" has received", senderNodeMap)
+	fmt.Println(GetLocalContainerName()+" has received", senderNodeMap)
 	updateForSender, returningNodeMap := g.compareAndUpdate(senderNodeMap)
 	sendMsg(con, updateForSender)
 	if updateForSender == "yes" {
@@ -184,29 +187,29 @@ func (g *gossip) listenMsg(con net.Conn) {
 	}
 }
 
-func (g *gossip) compareAndUpdate(senderNodeMap map[string]node) (string, map[string]node) {
+func (g *Gossip) compareAndUpdate(senderNodeMap map[string]Node) (string, map[string]Node) {
 	g.mu.Lock()
 	fmt.Println("senderNodeMap:", senderNodeMap)
-	fmt.Println("myNodeMap:", g.nodeMap)
+	fmt.Println("myNodeMap:", g.NodeMap)
 	updateForSender := "no"
-	nodeMapForSender := make(map[string]node)
+	nodeMapForSender := make(map[string]Node)
 	commonNodeCounter := 0
 	senderUniqueNodeCounter := 0
 
 	for senderKey, senderValue := range senderNodeMap {
-		if _, found := g.nodeMap[senderKey]; !found {
+		if _, found := g.NodeMap[senderKey]; !found {
 			// local nodeMap does not contain the node in sender's nodeMap
-			g.nodeMap[senderKey] = senderValue
+			g.NodeMap[senderKey] = senderValue
 			senderUniqueNodeCounter += 1
 		} else {
 			commonNodeCounter += 1
 		}
 	}
 
-	if iGotUniqueNodes := len(g.nodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 {
+	if iGotUniqueNodes := len(g.NodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 {
 		fmt.Println("Server has unique nodes!")
 		updateForSender = "yes"
-		for myKey, myValue := range g.nodeMap {
+		for myKey, myValue := range g.NodeMap {
 			if _, found := senderNodeMap[myKey]; !found {
 				nodeMapForSender[myKey] = myValue
 			}
@@ -224,7 +227,7 @@ func sendMsg(con net.Conn, msg string) {
 	checkErr(err)
 }
 
-func sendUpdateNodeMap(con net.Conn, nodeMap map[string]node) {
+func sendUpdateNodeMap(con net.Conn, nodeMap map[string]Node) {
 	enc := gob.NewEncoder(con)
 	err := enc.Encode(nodeMap)
 	checkErr(err)
@@ -232,7 +235,7 @@ func sendUpdateNodeMap(con net.Conn, nodeMap map[string]node) {
 }
 
 //  General helper functions
-func getLocalContainerName() string {
+func GetLocalContainerName() string {
 	var output string
 	switch os.Getenv("NODE_ID") {
 	case "0":
@@ -290,7 +293,7 @@ func nodeidToContainerName(nodeid string) string {
 	return containerName
 }
 
-func getMembership() bool {
+func GetMembership() bool {
 	var output bool
 	switch os.Getenv("MEMBERSHIP") {
 	case "yes":
@@ -301,7 +304,7 @@ func getMembership() bool {
 	return output
 }
 
-func getLocalNodeID() string {
+func GetLocalNodeID() string {
 	return os.Getenv("NODE_ID")
 }
 
@@ -311,8 +314,8 @@ func checkErr(err error) {
 	}
 }
 
-func deepCopyMap(originalMap map[string]node) map[string]node {
-	newMap := make(map[string]node)
+func deepCopyMap(originalMap map[string]Node) map[string]Node {
+	newMap := make(map[string]Node)
 	for key, value := range originalMap {
 		newMap[key] = value
 	}

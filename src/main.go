@@ -1,32 +1,19 @@
 package main
 
 import (
-	"sync"
+	gossip "ShoppiDB/src/gossipProtocol"
 	"time"
 )
 
-type node struct {
-	Membership    bool
-	ContainerName string
-	// nodeID
-	// tokenSet
-	// timeOfIssue int
-}
-
-type gossip struct {
-	mu      sync.Mutex
-	nodeMap map[string]node
-}
-
 func main() {
 	// done := make(chan struct{})
-	localNode := node{getMembership(), getLocalContainerName()}
-	gossip := gossip{nodeMap: make(map[string]node)}
+	localNode := gossip.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName()}
+	toCommunicate := gossip.Gossip{NodeMap: make(map[string]gossip.Node)}
 
 	//adding localNode into node map
-	gossip.nodeMap[getLocalNodeID()] = localNode
+	toCommunicate.NodeMap[gossip.GetLocalNodeID()] = localNode
 
-	go gossip.serverStart()
-	go gossip.clientStart()
+	go toCommunicate.ServerStart()
+	go toCommunicate.ClientStart()
 	time.Sleep(time.Minute * 5)
 }
