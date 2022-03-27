@@ -1,8 +1,8 @@
 package main
 
 import (
-	gossip "ShoppiDB/src/gossipProtocol"
 	"ShoppiDB/pkg/data_versioning"
+	gossip "ShoppiDB/src/gossipProtocol"
 	"encoding/gob"
 	"fmt"
 	"github.com/k0kubun/pp/v3"
@@ -26,6 +26,7 @@ func main() {
 	go toCommunicate.ServerStart()
 	go toCommunicate.ClientStart()
 	time.Sleep(time.Minute * 5)
+
 	id := os.Getenv("NODE_ID")
 	ln, err := net.Listen("tcp", ":8080")
 	if err != nil {
