@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ShoppiDB/src/conHashing"
+	"ShoppiDB/pkg/consistent_hashing"
 	"fmt"
 	"log"
 	"net"
