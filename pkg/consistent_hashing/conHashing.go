@@ -3,91 +3,13 @@ package conHashing
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"math/big"
-	"strconv"
 )
 var hashRange = new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil)
-
-type Node struct {
-	ID string
-	IsSeed bool
-
-	NodeRingPositions []int
-	Ring *Ring
-}
 
 type Ring struct {
     MaxID int
 	NodesMap map[string][]int
-}
-
-/**
-* Returns a new node
-*	if is a seed node, create a new ring
-*
-* @param nodeId The id for the new node
-* @param seedNodes The array containing id of seed nodes
-*
-* @return a new node
-*/
-func NewNode(nodeId string, seedNodes []string) Node {
-	var isSeed = false
-	for _, s := range seedNodes {
-		if nodeId == s {
-			isSeed = true
-		}
-	}
-	if isSeed {
-		var ring = NewRing()
-		ring.NodesMap[nodeId] = []int{1}
-		return Node {
-			ID: nodeId,
-			IsSeed: isSeed,
-			Ring: ring,
-		}
-	} else {
-		return Node {
-			ID: nodeId,
-			IsSeed: false,
-		}
-	}
-}
-
-/**
-* Update the position of its virtual nodes assigned
-*
-* @param node The node to update
-* @param numNodes The total number of nodes
-*
-*/
-func UpdateNode(node Node, numNodes string) {
-	id, _ := strconv.Atoi(node.ID)
-	totalNodes, _ := strconv.Atoi(numNodes)
-	var nodeRingPositions []int
-	for i := id; i <= totalNodes*totalNodes; i += totalNodes {
-		nodeRingPositions = append(nodeRingPositions, i)
-	}
-	node.NodeRingPositions = nodeRingPositions
-	fmt.Println(node.NodeRingPositions)
-}
-
-/**
-* Update the position of its virtual nodes assigned to seed node
-*
-* @param node The node to update
-* @param numNodes The total number of nodes
-*
-*/
-func UpdateSeedNode(node Node, senderNodeId string) {
-	node.Ring.MaxID += 1
-	var nodeRingPositions []int
-	id, _ := strconv.Atoi(node.ID)
-	for i := id; i < node.Ring.MaxID*node.Ring.MaxID; i += node.Ring.MaxID {
-		nodeRingPositions = append(nodeRingPositions, i)
-	}
-	fmt.Println(nodeRingPositions)
-	node.Ring.NodesMap[senderNodeId] = nodeRingPositions
 }
 
 func NewRing() *Ring {
