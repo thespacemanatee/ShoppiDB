@@ -1,114 +1,104 @@
 package main
 
 import (
-	"ShoppiDB/src/replication"
+	"ShoppiDB/pkg/data_versioning"
+	nodePkg "ShoppiDB/pkg/node"
+	"encoding/gob"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/k0kubun/pp/v3"
 )
 
-// type Message struct {
-// 	senderID string `json: "senderID`
-// 	messasge string `json: "message`
-// }
+var node data_versioning.Node
+var localDataObject data_versioning.DataObject
 
 func main() {
-	client := redis.NewClient(&redis.Options{})
-	//case where replication goes around the ring once
-	//node 2 with replicas in 3, 4 and 1
-	// nodeStructure := [4]int{1, 2, 3, 4}
-	// node := Node{os.Getenv("NODE_ID"), 4, 1, 1, nodeStructure,make(map[string]bool), *client}
-	// node.Start()
-	// for {
-	// 	time.Sleep(time.Second * 1)
-	// 	if node.id == strconv.Itoa(2) {
-	// 		node.ReplicateWrites()
-	// 		time.Sleep(time.Second * 10)
-	// 	}
-	// }
-	// fmt.Println("End of Program")
-
-	// case where all nodes are sending replications
-	// nodeStructure := [4]int{1, 2, 3, 4}
-	// node := Node{os.Getenv("NODE_ID"), 4, 1, 1, nodeStructure, make(map[string]bool),*client}
-	// node.Start()
-	// for {
-	// 	time.Sleep(time.Second * 1)
-	// 	node.ReplicateWrites()
-	// 	time.Sleep(time.Second * 10)
-	// }
-	// fmt.Println("End of Program")
-
-	// case where 1 node is sending replication and n=2
-	// nodeStructure := [4]int{1, 2, 3, 4}
-	// node := Node{os.Getenv("NODE_ID"), 2, 1, 1, nodeStructure, make(map[string]bool), *client}
-	// node.Start()
-	// for {
-	// 	time.Sleep(time.Second * 1)
-	// 	if node.id == strconv.Itoa(1) {
-	// 		node.ReplicateWrites()
-	// 		time.Sleep(time.Second * 10)
-	// 	}
-	// }
-	// fmt.Println("End of Program")
-
-	//case where node 2 is sleeping N=3 and node 1 sends, expects node 3 and 4 to receive
-	// nodeStructure := [4]int{1, 2, 3, 4}
-	// node := replication.Node{Id: os.Getenv("NODE_ID"), N: 3, R: 1, W: 4, NodeStructure: nodeStructure, ReplicationCheck: make(map[string]bool), Rbd: *client}
-	// if node.Id != strconv.Itoa(2) {
-	// 	node.Start()
-	// }
-	// sleep := true
-	// for {
-	// 	if node.Id == strconv.Itoa(2) && sleep {
-	// 		time.Sleep(time.Second * 30)
-	// 		sleep = false
-	// 		fmt.Println("NODE WOKE UP")
-	// 		node.Start()
-
-	// 	}
-	// 	if node.Id == strconv.Itoa(1) {
-	// 		time.Sleep(time.Millisecond * 100)
-	// 		node.ReplicateWrites()
-	// 		time.Sleep(time.Second * 10)
-	// 	}
-	// }
-	// fmt.Println("End of Program")
-
-	//case where node 2 and 3 is sleeping n=2 and node 1 sends, N=2, expects node 4 to receive
-	nodeStructure := [4]int{1, 2, 3, 4}
-	node := replication.Node{Id: os.Getenv("NODE_ID"), N: 2, R: 1, W: 4, NodeStructure: nodeStructure, ReplicationCheck: make(map[string]bool), Rbd: *client}
-	if node.Id != strconv.Itoa(3) {
-		if node.Id != strconv.Itoa(2) {
-			node.Start()
-		}
+	id := os.Getenv("NODE_ID")
+	node := nodePkg.Node{}
+	go node.StartHTTPServer()
+	httpClient := nodePkg.GetHTTPClient()
+	var oppId int
+	switch id {
+	case "1":
+		oppId = 2
+	case "2":
+		oppId = 1
+	default:
+		oppId = 0
 	}
-	sleep := true
-	if node.Id == strconv.Itoa(3) && sleep {
-		fmt.Print("NODE SLEEPING")
-		time.Sleep(time.Second * 10)
-		sleep = false
-		fmt.Println("NODE WOKE UP")
-		node.Start()
-	}
-	if node.Id == strconv.Itoa(2) && sleep {
-		fmt.Print("NODE SLEEPING")
-		time.Sleep(time.Second * 10)
-		sleep = false
-		fmt.Println("NODE WOKE UP")
-		node.Start()
-	}
-	if node.Id == strconv.Itoa(1) {
-		time.Sleep(time.Millisecond * 100)
-		node.ReplicateWrites()
-		time.Sleep(time.Second * 1)
-	}
+	nodeDNS, err := getNodeDNS(oppId)
+	checkErr(err)
+	time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
 	for {
-
+		node.BasicHTTPGET(nodeDNS, httpClient)
 	}
-	fmt.Println("End of Program")
+}
 
+//Example Code for socket
+func listenMessage(ln net.Listener) {
+	fmt.Println("Start listening")
+	// accept connection
+	defer ln.Close()
+	fmt.Println("Listening on :8080")
+	fmt.Println("Waiting for client...")
+	for {
+		// get message, output
+		connection, err := ln.Accept()
+		if err != nil {
+			fmt.Println("Error accepting: ", err.Error())
+			os.Exit(1)
+		}
+		go processClient(connection)
+	}
+}
+
+//Example code for sending message through socket
+func sendMessage(id int) {
+	fmt.Printf("Node %s sending message\n", node)
+	target := "Tobechange"
+	time.Sleep(time.Millisecond * 5)
+	con, err := net.Dial("tcp", target)
+	encoder := gob.NewEncoder(con)
+	_ = encoder.Encode(&localDataObject)
+
+	checkErr(err)
+}
+
+//Get the respective DN of the nodes
+func getNodeDNS(i interface{}) (string, error) {
+	switch o := i.(type) {
+	case string:
+		return "node" + o, nil
+	case int:
+		return "node" + strconv.Itoa(o), nil
+	default:
+		return "", errors.New("Invalid Format")
+	}
+}
+
+//Basic error print
+func checkErr(err error) {
+	if err != nil {
+		fmt.Println("ERROR")
+		fmt.Println(err)
+	}
+}
+
+func processClient(connection net.Conn) {
+	dec := gob.NewDecoder(connection)
+	dataObject := &data_versioning.DataObject{}
+	err := dec.Decode(dataObject)
+	objects := []data_versioning.DataObject{localDataObject, *dataObject}
+	newObjects := data_versioning.GetResponseDataObjects(objects)
+	pp.Printf("Response objects: %+v\n", newObjects)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+	pp.Printf("Received: %+v\n", dataObject)
+	_ = connection.Close()
 }
