@@ -41,7 +41,7 @@ type ReplicationMessage struct {
 	// 6 - key data
 }
 
-func (r Replicator) SendReplicationMessage(httpClient *http.Client, msg ReplicationMessage) (failedConn int, failedTarget int) {
+func (r *Replicator) SendReplicationMessage(httpClient *http.Client, msg ReplicationMessage) (failedConn int, failedTarget int) {
 	// used to indicate whether connection failed
 	defer func() {
 		if r := recover(); r != nil {
@@ -128,44 +128,18 @@ func (r *Replicator) ReplicateReads(key string) {
 		fmt.Println(err)
 	}
 	r.ReadCheck = make(map[int]bool)
-	failedConnections := 0
-	failedTargets := []int{}
 	targets := r.getNodes(r.N-1, id+1)
 	for _, target := range targets {
-		msg := ReplicationMessage{SenderId: id, Dest: target, Data: key, MessageCode: 2}
+		msg := ReplicationMessage{SenderId: id, Dest: target, Data: key, MessageCode: 6}
 		res, t := r.SendReplicationMessage(r.HttpClient, msg)
 		if res == 1 {
 			fmt.Println("Message to " + strconv.Itoa(t) + " failed")
-			failedTargets = append(failedTargets, t)
 		}
-		failedConnections += res
 	}
-	startingPt := r.N + id
-	count := 0
 	// sents to nodes next in priority list
-	for {
-		newTargets := r.getNodes(failedConnections, startingPt)
-		for _, target := range newTargets {
-			handoffMsg := ReplicationMessage{SenderId: id, Dest: target, IntendedRecipientId: failedTargets[count], Data: key, MessageCode: 3}
-			res, _ := r.SendReplicationMessage(r.HttpClient, handoffMsg)
-			if res == 0 {
-				count++
-				failedConnections--
-				if startingPt == id {
-					fmt.Println("not enough nodes available")
-					break
-				}
-			} else {
-				startingPt++
-			}
-			if failedConnections == 0 {
-				break
-			}
-		}
-	}
 	time.Sleep(time.Second * 1)
-	fmt.Println("Results for write replication")
-	fmt.Println(r.WriteCheck)
+	fmt.Println("Results for read replication")
+	fmt.Println(r.ReadCheck)
 	res := r.checkReadQuorum()
 	fmt.Println(res)
 }
