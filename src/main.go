@@ -3,6 +3,7 @@ package main
 import (
 	"ShoppiDB/pkg/data_versioning"
 	nodePkg "ShoppiDB/pkg/node"
+	gossip "ShoppiDB/src/gossipProtocol"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -18,6 +19,17 @@ var node data_versioning.Node
 var localDataObject data_versioning.DataObject
 
 func main() {
+	// done := make(chan struct{})
+	localNode := gossip.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName()}
+	toCommunicate := gossip.Gossip{NodeMap: make(map[string]gossip.Node)}
+
+	//adding localNode into node map
+	toCommunicate.NodeMap[gossip.GetLocalNodeID()] = localNode
+
+	go toCommunicate.ServerStart()
+	go toCommunicate.ClientStart()
+	time.Sleep(time.Minute * 5)
+
 	id := os.Getenv("NODE_ID")
 	node := nodePkg.Node{}
 	go node.StartHTTPServer()
