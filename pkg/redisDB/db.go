@@ -1,4 +1,4 @@
-package main
+package redisDB
 
 import (
 	"context"
@@ -7,15 +7,20 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-func exampleDB() {
-	ctx := context.Background()
-
-	//Connect to the local db
+func getDBClient() *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
+	return rdb
+}
+
+func exampleDB() {
+	ctx := context.Background()
+
+	//Connect to the local db
+	rdb := getDBClient()
 
 	//Set Function
 	err := rdb.Set(ctx, "key", "value", 0).Err()

@@ -2,14 +2,17 @@ package main
 
 import (
 	"ShoppiDB/pkg/data_versioning"
+	nodePkg "ShoppiDB/pkg/node"
 	gossip "ShoppiDB/src/gossipProtocol"
 	"encoding/gob"
+	"errors"
 	"fmt"
-	"github.com/k0kubun/pp/v3"
-	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/k0kubun/pp/v3"
 )
 
 var node data_versioning.Node
@@ -28,20 +31,27 @@ func main() {
 	time.Sleep(time.Minute * 5)
 
 	id := os.Getenv("NODE_ID")
-	ln, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		log.Fatal("server, Listen", err)
+	node := nodePkg.Node{}
+	go node.StartHTTPServer()
+	httpClient := nodePkg.GetHTTPClient()
+	var oppId int
+	switch id {
+	case "1":
+		oppId = 2
+	case "2":
+		oppId = 1
+	default:
+		oppId = 0
 	}
-	node = data_versioning.Node(id)
-	localDataObject = data_versioning.NewDataObject("1", nil)
-	go listenMessage(ln)
+	nodeDNS, err := getNodeDNS(oppId)
+	checkErr(err)
+	time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
 	for {
-		data_versioning.UpdateVectorClock(node, localDataObject.Version)
-		time.Sleep(time.Second * 5)
-		sendMessage()
+		node.BasicHTTPGET(nodeDNS, httpClient)
 	}
 }
 
+//Example Code for socket
 func listenMessage(ln net.Listener) {
 	fmt.Println("Start listening")
 	// accept connection
@@ -59,34 +69,34 @@ func listenMessage(ln net.Listener) {
 	}
 }
 
-func sendMessage() {
+//Example code for sending message through socket
+func sendMessage(id int) {
 	fmt.Printf("Node %s sending message\n", node)
-	target := getNode()
+	target := "Tobechange"
 	time.Sleep(time.Millisecond * 5)
 	con, err := net.Dial("tcp", target)
 	encoder := gob.NewEncoder(con)
 	_ = encoder.Encode(&localDataObject)
 
-	defer con.Close()
-
 	checkErr(err)
 }
 
-func getNode() string {
-	switch node {
-	case "1":
-		return "node2:8080"
-	case "2":
-		return "node1:8080"
+//Get the respective DN of the nodes
+func getNodeDNS(i interface{}) (string, error) {
+	switch o := i.(type) {
+	case string:
+		return "node" + o, nil
+	case int:
+		return "node" + strconv.Itoa(o), nil
 	default:
-		fmt.Println("ERROR ID")
-		return "null"
+		return "", errors.New("Invalid Format")
 	}
 }
 
+//Basic error print
 func checkErr(err error) {
 	if err != nil {
-		fmt.Println("CONNECTION ERROR")
+		fmt.Println("ERROR")
 		fmt.Println(err)
 	}
 }
