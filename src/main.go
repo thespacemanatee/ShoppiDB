@@ -2,8 +2,8 @@ package main
 
 import (
 	"ShoppiDB/pkg/data_versioning"
+	gossip "ShoppiDB/pkg/gossipProtocol"
 	nodePkg "ShoppiDB/pkg/node"
-	gossip "ShoppiDB/src/gossipProtocol"
 	"encoding/gob"
 	"errors"
 	"fmt"
