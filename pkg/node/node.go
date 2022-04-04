@@ -47,25 +47,40 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 	case 0:
 		{
 			// failed write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed write")
 		}
 	case 1:
 		{
 			// success write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " success")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful write")
 			n.Replicator.AddSuccessfulWrite(msg.SenderId)
 		}
 	case 2:
 		{
 			// response
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " response")
-			go n.Replicator.HandleResponse(msg)
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " replication response")
+			go n.Replicator.HandleWriteResponse(msg)
 		}
 	case 3:
 		{
 			// hinted handoff
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " response")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " handoff data")
 			go n.Replicator.HandleHandoff(msg)
+		}
+	case 4:
+		{
+			// failed read
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed read")
+		}
+	case 5:
+		{
+			fmt.Println("Received from Node: "+ strconv.Itoa(msg.SenderId)+ " successful read")
+			n.Replicator.AddSuccessfulRead(msg.SenderId)
+		}
+	case 6:
+		{
+			fmt.Println("Received from Node: "+ strconv.Itoa(msg.SenderId)+ " key data")
+			go n.Replicator.HandleReadResponse(msg)
 		}
 	default:{
 		fmt.Println("Wrong message code used")

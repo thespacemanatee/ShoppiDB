@@ -14,15 +14,16 @@ import (
 )
 
 type Replicator struct {
-	Id               string
-	N                int
-	R                int
-	W                int
-	NodeStructure    [4]int
-	ReplicationCheck map[int]bool
-	Rbd              redis.Client
-	HttpClient       *http.Client
-	mu               sync.Mutex
+	Id            string
+	N             int
+	R             int
+	W             int
+	NodeStructure [4]int
+	WriteCheck    map[int]bool
+	ReadCheck     map[int]bool
+	Rbd           redis.Client
+	HttpClient    *http.Client
+	mu            sync.Mutex
 }
 
 type ReplicationMessage struct {
@@ -31,10 +32,13 @@ type ReplicationMessage struct {
 	IntendedRecipientId int    `json:"intendedreceipientid"`
 	Data                string `json:"data"`
 	MessageCode         int    `json:"messagecode"`
-	// 0 - failed
-	// 1 - success
+	// 0 - failed write
+	// 1 - successful write
 	// 2 - replication data
 	// 3 - hinted handoff
+	// 4 -failed read
+	// 5 - successful read
+	// 6 - key data
 }
 
 func (r Replicator) SendReplicationMessage(httpClient *http.Client, msg ReplicationMessage) (failedConn int, failedTarget int) {
@@ -72,7 +76,7 @@ func (r *Replicator) ReplicateWrites(data string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	r.ReplicationCheck = make(map[int]bool)
+	r.WriteCheck = make(map[int]bool)
 	failedConnections := 0
 	failedTargets := []int{}
 	targets := r.getNodes(r.N-1, id+1)
@@ -110,8 +114,59 @@ func (r *Replicator) ReplicateWrites(data string) {
 	}
 	time.Sleep(time.Second * 1)
 	fmt.Println("Results for write replication")
-	fmt.Println(r.ReplicationCheck)
+	fmt.Println(r.WriteCheck)
 	res := r.checkWriteQuorum()
+	fmt.Println(res)
+}
+
+// starts replication processs
+// needs to be updated to use node structure from gossip
+func (r *Replicator) ReplicateReads(key string) {
+	fmt.Println("Node: " + (r.Id) + " begining replication")
+	id, err := strconv.Atoi(r.Id)
+	if err != nil {
+		fmt.Println(err)
+	}
+	r.ReadCheck = make(map[int]bool)
+	failedConnections := 0
+	failedTargets := []int{}
+	targets := r.getNodes(r.N-1, id+1)
+	for _, target := range targets {
+		msg := ReplicationMessage{SenderId: id, Dest: target, Data: key, MessageCode: 2}
+		res, t := r.SendReplicationMessage(r.HttpClient, msg)
+		if res == 1 {
+			fmt.Println("Message to " + strconv.Itoa(t) + " failed")
+			failedTargets = append(failedTargets, t)
+		}
+		failedConnections += res
+	}
+	startingPt := r.N + id
+	count := 0
+	// sents to nodes next in priority list
+	for {
+		newTargets := r.getNodes(failedConnections, startingPt)
+		for _, target := range newTargets {
+			handoffMsg := ReplicationMessage{SenderId: id, Dest: target, IntendedRecipientId: failedTargets[count], Data: key, MessageCode: 3}
+			res, _ := r.SendReplicationMessage(r.HttpClient, handoffMsg)
+			if res == 0 {
+				count++
+				failedConnections--
+				if startingPt == id {
+					fmt.Println("not enough nodes available")
+					break
+				}
+			} else {
+				startingPt++
+			}
+			if failedConnections == 0 {
+				break
+			}
+		}
+	}
+	time.Sleep(time.Second * 1)
+	fmt.Println("Results for write replication")
+	fmt.Println(r.WriteCheck)
+	res := r.checkReadQuorum()
 	fmt.Println(res)
 }
 
@@ -167,10 +222,10 @@ func (r *Replicator) getNodes(numNodes int, startingPt int) []int {
 
 func (r *Replicator) checkWriteQuorum() bool {
 	fmt.Println("in check write quorum")
-	fmt.Println(r.ReplicationCheck)
+	fmt.Println(r.WriteCheck)
 	values := []bool{}
 	r.mu.Lock()
-	for _, v := range r.ReplicationCheck {
+	for _, v := range r.WriteCheck {
 		if v {
 			values = append(values, v)
 		}
@@ -178,6 +233,27 @@ func (r *Replicator) checkWriteQuorum() bool {
 	r.mu.Unlock()
 	fmt.Println(len(values))
 	if len(values) < r.W {
+		fmt.Println("failed write quorum")
+		return false
+	} else {
+		fmt.Println("passed write quorum")
+		return true
+	}
+}
+
+func (r *Replicator) checkReadQuorum() bool {
+	fmt.Println("in check write quorum")
+	fmt.Println(r.ReadCheck)
+	values := []bool{}
+	r.mu.Lock()
+	for _, v := range r.ReadCheck {
+		if v {
+			values = append(values, v)
+		}
+	}
+	r.mu.Unlock()
+	fmt.Println(len(values))
+	if len(values) < r.R {
 		fmt.Println("failed write quorum")
 		return false
 	} else {
@@ -206,10 +282,17 @@ func (r *Replicator) HandleHandoff(msg ReplicationMessage) {
 	fmt.Println("successfully sent handoff data")
 }
 
-func (r *Replicator) HandleResponse(receivedMsg ReplicationMessage) {
+func (r *Replicator) HandleWriteResponse(receivedMsg ReplicationMessage) {
 	// need add part for writes to redis
 	// successful write to redis
 	msg := ReplicationMessage{SenderId: getOwnId(), Dest: receivedMsg.SenderId, Data: "string", MessageCode: 1}
+	go r.SendReplicationMessage(r.HttpClient, msg)
+}
+
+func (r *Replicator) HandleReadResponse(receivedMsg ReplicationMessage) {
+	// need add part for writes to redis
+	// successful write to redis
+	msg := ReplicationMessage{SenderId: getOwnId(), Dest: receivedMsg.SenderId, Data: "string", MessageCode: 5}
 	go r.SendReplicationMessage(r.HttpClient, msg)
 }
 
@@ -223,7 +306,14 @@ func getOwnId() int {
 // used for successful write responses
 func (r *Replicator) AddSuccessfulWrite(id int) {
 	r.mu.Lock()
-	r.ReplicationCheck[id] = true
+	r.WriteCheck[id] = true
 	r.mu.Unlock()
-	fmt.Println(r.ReplicationCheck)
+	fmt.Println(r.WriteCheck)
+}
+
+func (r *Replicator) AddSuccessfulRead(id int) {
+	r.mu.Lock()
+	r.ReadCheck[id] = true
+	r.mu.Unlock()
+	fmt.Println(r.ReadCheck)
 }
