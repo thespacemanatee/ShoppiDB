@@ -5,7 +5,9 @@ import (
 )
 
 type Node struct {
-	nonce []string
+	nonce         []string
+	ContainerName string
+	TokenSet      [][]int
 }
 
 func (n *Node) updateNonce(nonce string) {

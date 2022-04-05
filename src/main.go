@@ -2,7 +2,7 @@ package main
 
 import (
 	"ShoppiDB/pkg/data_versioning"
-	gossip "ShoppiDB/src/gossipProtocol"
+	gossip "ShoppiDB/pkg/gossipProtocol"
 	"encoding/gob"
 	"errors"
 	"fmt"
