@@ -3,6 +3,7 @@ package main
 import (
 	"ShoppiDB/pkg/data_versioning"
 	gossip "ShoppiDB/pkg/gossip"
+	"ShoppiDB/pkg/http_api"
 	nodePkg "ShoppiDB/pkg/node"
 	"bytes"
 	"encoding/gob"
@@ -16,8 +17,6 @@ import (
 	"time"
 
 	"github.com/k0kubun/pp/v3"
-
-	http_api "ShoppiDB/pkg/http_api"
 )
 
 var node data_versioning.Node
