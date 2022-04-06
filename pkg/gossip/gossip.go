@@ -3,12 +3,26 @@ package gossip
 /*
 4. Membership history :) Add/Delete new nodes. snapshot of nodeMap with timestamp can be stored onto the db.
 */
+/*
+ System design for gossip:
+	1. Gossip should have its own http.Client created in a goroutine that deals entirely
+	with the client logic i.e. sending out its node structure periodically.
+	2. Server: create a function in gossip that starts the http.Server. Main() will call the
+	gossip function which will call the http_api function.
+	3. Server should still send back the feedback for the client to update its gossip.CommNodeMap and gossip.VirtualNodeMap.
+
+*/
+// handler should be able to return what it received, but it does not return anything. Need to figure out how to get the value.
+// 1. Global variable 2. Read handler doc 3. Google/stackoverflow
 
 import (
+	nodePkg "ShoppiDB/pkg/node"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -20,6 +34,9 @@ const (
 	CONN_TYPE = "tcp"
 )
 
+// Global gossip variable declaration
+var gossip Gossip
+
 type Node struct {
 	Membership    bool
 	ContainerName string
@@ -29,8 +46,13 @@ type Node struct {
 }
 
 type Gossip struct {
-	mu      sync.Mutex
-	NodeMap map[string]Node
+	mu             sync.Mutex
+	CommNodeMap    map[string]nodePkg.Node
+	VirtualNodeMap map[[2]int]nodePkg.Node
+}
+
+type Message struct {
+	Msg string
 }
 
 /*
@@ -159,17 +181,36 @@ func (g *Gossip) sendMyNodeMap(con net.Conn) {
 SERVER
 */
 
-func (g *Gossip) ServerStart() {
-	fmt.Println("Starting server...")
-	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
-	checkErr(err)
-	defer dataStream.Close()
-	for {
-		con, err := dataStream.Accept()
-		checkErr(err)
-		go g.listenMsg(con)
+func GossipHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(GetLocalContainerName(), "HAS RECEIVED MESSAGE!")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
 	}
+	var message Message
+	err := json.NewDecoder(r.Body).Decode(&message)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	// Business logic
+	fmt.Println(message.Msg)
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(message) //Writing the message back
 }
+
+// func (g *Gossip) ServerStart() {
+// 	fmt.Println("Starting server...")
+// 	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
+// 	checkErr(err)
+// 	defer dataStream.Close()
+// 	for {
+// 		con, err := dataStream.Accept()
+// 		checkErr(err)
+// 		go g.listenMsg(con)
+// 	}
+// }
 
 //Helper functions for gossip.serverStart
 func (g *Gossip) listenMsg(con net.Conn) {
@@ -321,3 +362,13 @@ func deepCopyMap(originalMap map[string]Node) map[string]Node {
 	}
 	return newMap
 }
+
+//HTTP
+// func startHTTPServer() {
+// 	fmt.Println("Starting HTTP Server for gossip")
+// 	router := mux.NewRouter().StrictSlash(true)
+// 	router.HandleFunc("/", defaultHandler).Methods("GET")
+// 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
+// 	router.HandleFunc("/gossip", gossip.GossipHandler).Methods("POST")
+// 	log.Fatal(http.ListenAndServe(":8080", router))
+// }

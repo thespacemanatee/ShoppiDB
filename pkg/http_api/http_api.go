@@ -2,6 +2,7 @@ package http_api
 
 import (
 	"ShoppiDB/pkg/byzantine"
+	gossip "ShoppiDB/pkg/gossip"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -43,6 +44,7 @@ func StartHTTPServer() {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", defaultHandler).Methods("GET")
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
+	router.HandleFunc("/gossip", gossip.GossipHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -82,3 +84,22 @@ func checkErr(err error) {
 		fmt.Println(err)
 	}
 }
+
+// func GossipHandler(w http.ResponseWriter, r *http.Request) {
+// 	fmt.Println(gossip.GetLocalContainerName(), "HAS RECEIVED MESSAGE!")
+// 	w.Header().Set("Content-Type", "application/json")
+// 	if r.Body == nil {
+// 		http.Error(w, "Please send a request body", 400)
+// 		return
+// 	}
+// 	var message gossip.Message
+// 	err := json.NewDecoder(r.Body).Decode(&message)
+// 	if err != nil {
+// 		http.Error(w, err.Error(), 400)
+// 		return
+// 	}
+// 	// Business logic
+// 	fmt.Println(message.Msg)
+// 	w.WriteHeader(http.StatusAccepted)
+// 	json.NewEncoder(w).Encode(message) //Writing the message back
+// }

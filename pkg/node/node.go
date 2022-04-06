@@ -8,6 +8,7 @@ type Node struct {
 	nonce         []string
 	ContainerName string
 	TokenSet      [][]int
+	Membership    bool
 }
 
 func (n *Node) updateNonce(nonce string) {
