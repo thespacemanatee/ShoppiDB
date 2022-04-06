@@ -74,7 +74,9 @@ func (g *Gossip) Start() {
 	seedNodesMap := g.populate(seedNodesArr)
 
 	// Periodically select a random seed node to exchange data
-	ticker := time.NewTicker(10 * time.Second)
+	nodeIDInt, err := strconv.Atoi(GetLocalNodeID())
+	checkErr(err)
+	ticker := time.NewTicker(time.Duration(2*nodeIDInt+5) * time.Second)
 	timer := time.NewTimer(time.Minute)
 
 	//Only non-seed nodes execute the below block of code

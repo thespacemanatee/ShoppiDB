@@ -28,7 +28,7 @@ func main() {
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
 
 	go localNode.StartHTTPServer()
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 10)
 	go localNode.Gossiper.Start()
 	time.Sleep(time.Minute * 5)
 }
