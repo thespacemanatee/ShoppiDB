@@ -16,50 +16,49 @@ package gossip
 // 1. Global variable 2. Read handler doc 3. Google/stackoverflow
 
 import (
-	nodePkg "ShoppiDB/pkg/node"
-	"encoding/gob"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	CONN_PORT = ":8080"
-	CONN_TYPE = "tcp"
+	CONN_PORT  = ":8080"
+	CONN_TYPE  = "http://"
+	HTTP_ROUTE = "/gossip"
 )
 
-// Global gossip variable declaration
-var gossip Gossip
-
-type Node struct {
-	Membership    bool
+type GossipMessage struct {
+	Update        bool
 	ContainerName string
-	// nodeID
-	// tokenSet
-	// timeOfIssue int
+	MyCommNodeMap map[string]GossipNode
+	// MyVirtualNodeMap map[[2]string]GossipNode //Itoa: convert int to string first when populating. Convert to int when reading.
+}
+
+type GossipNode struct {
+	ContainerName string
+	TokenSet      [][]int
+	Membership    bool
 }
 
 type Gossip struct {
-	mu             sync.Mutex
-	CommNodeMap    map[string]nodePkg.Node
-	VirtualNodeMap map[[2]int]nodePkg.Node
-}
-
-type Message struct {
-	Msg string
+	mu          sync.Mutex
+	CommNodeMap map[string]GossipNode //Map ID to physical node
+	// VirtualNodeMap map[[2]string]GossipNode //Itoa: convert int to string first when populating. Convert to int when reading.
+	HttpClient *http.Client
 }
 
 /*
 CLIENT
 */
 
-func (g *Gossip) ClientStart() {
+func (g *Gossip) Start() {
 	// get seed nodes []string
 	seedNodesArr := getSeedNodes()
 	// if node is seednode, sleep for a min before communicating with other nodes
@@ -87,10 +86,8 @@ func (g *Gossip) ClientStart() {
 				// Can consider having this being run on a goroutine, but implement it such that the client don't dial to the same node successively in a row
 				seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
 				seedNode := seedNodesMap[seedID]
-				con, err := net.Dial(CONN_TYPE, seedNode.ContainerName+CONN_PORT)
-				checkErr(err)
-				g.sendMyNodeMap(con)
-				g.waitForResponse(con)
+				target := CONN_TYPE + seedNode.ContainerName + CONN_PORT + HTTP_ROUTE
+				g.clientSendMsgWithHTTP(g.HttpClient, target)
 			case <-timer.C:
 				ticker.Stop()
 				fmt.Println("")
@@ -108,20 +105,36 @@ func (g *Gossip) ClientStart() {
 	ticker2 := time.NewTicker(10 * time.Second)
 	for range ticker2.C {
 		randNode := g.getRandNode()
-		con, err := net.Dial(CONN_TYPE, randNode.ContainerName+CONN_PORT)
-		checkErr(err)
-		g.sendMyNodeMap(con)
-		g.waitForResponse(con)
+		target := CONN_TYPE + randNode.ContainerName + CONN_PORT + HTTP_ROUTE
+		g.clientSendMsgWithHTTP(g.HttpClient, target)
 	}
 }
 
-// Helper functions for gossip.clientStart
-func (g *Gossip) populate(seedNodesArray []string) map[string]Node {
+// Helper functions for gossip.Start
+
+func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
+	msg := GossipMessage{ContainerName: GetLocalContainerName(), MyCommNodeMap: g.CommNodeMap}
+	msgJson, err1 := json.Marshal(msg)
+	checkErr(err1)
+	req, err2 := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(msgJson))
+	checkErr(err2)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err3 := client.Do(req)
+	checkErr(err3)
+	defer resp.Body.Close()
+	var respMsg GossipMessage
+	json.NewDecoder(resp.Body).Decode(&respMsg)
+	fmt.Println(GetLocalContainerName(), "received", respMsg.MyCommNodeMap, "from", respMsg.ContainerName, "with", respMsg.Update)
+	g.recvGossipMsg(respMsg)
+}
+
+// Take a string array of seed node IDs and populate them into Gossip.CommNodeMap and return a seedNodeMap map[seedNodeID(string)]GossipNode
+func (g *Gossip) populate(seedNodesArray []string) map[string]GossipNode {
 	g.mu.Lock()
-	seedNodesMap := make(map[string]Node)
+	seedNodesMap := make(map[string]GossipNode)
 	for _, str := range seedNodesArray {
-		node := Node{Membership: true, ContainerName: nodeidToContainerName(str)}
-		g.NodeMap[str] = node
+		node := GossipNode{Membership: true, ContainerName: nodeidToContainerName(str)}
+		g.CommNodeMap[str] = node
 		// Populating seedNode map as well
 		seedNodesMap[str] = node
 	}
@@ -129,150 +142,81 @@ func (g *Gossip) populate(seedNodesArray []string) map[string]Node {
 	return seedNodesMap
 }
 
-func (g *Gossip) getRandNode() Node {
+func (g *Gossip) getRandNode() GossipNode {
 	g.mu.Lock()
-	randomInt := rand.Intn(len(g.NodeMap))
-	fmt.Println("string(randomInt):", string(randomInt))
-	randNode := g.NodeMap[string(randomInt)]
+	var randNode GossipNode
+	var randomInt int
+loop:
+	for {
+		randomInt = rand.Intn(len(g.CommNodeMap))
+
+		fmt.Println("string(randomInt):", strconv.Itoa(randomInt))
+		randNode = g.CommNodeMap[strconv.Itoa(randomInt)]
+		if randNode.ContainerName != GetLocalContainerName() {
+			fmt.Println(randNode.ContainerName, GetLocalContainerName())
+			break loop
+		}
+	}
 	g.mu.Unlock()
 	return randNode
 }
 
-func (g *Gossip) waitForResponse(con net.Conn) {
-	response := make([]byte, 1024)
-	fmt.Println("Waiting for server's response")
-	msgLen, errResp := con.Read(response)
-	checkErr(errResp)
-	reply := string(response[:msgLen])
-	fmt.Println("Server's response is:", reply)
-	if reply == "no" {
-		con.Close()
-	} else {
-		g.recvNodes(con)
-	}
-}
-
-func (g *Gossip) recvNodes(con net.Conn) {
+func (g *Gossip) recvGossipMsg(msg GossipMessage) {
 	g.mu.Lock()
-	dec := gob.NewDecoder(con)
-	var incNodeMap map[string]Node
-	err := dec.Decode(&incNodeMap)
-	checkErr(err)
-	fmt.Println(GetLocalContainerName()+" has received", incNodeMap)
-
-	for key, value := range incNodeMap {
-		g.NodeMap[key] = value
+	fmt.Println(GetLocalContainerName()+" has received", msg)
+	if msg.Update {
+		for key, value := range msg.MyCommNodeMap {
+			g.CommNodeMap[key] = value
+		}
 	}
+	fmt.Println(GetLocalContainerName(), "has", g.CommNodeMap)
 	g.mu.Unlock()
-	con.Close()
-}
-
-func (g *Gossip) sendMyNodeMap(con net.Conn) {
-	// localNode := g.nodeMap[getLocalNodeID()]
-	myNodeMap := deepCopyMap(g.NodeMap)
-	// myNodeMap := g.nodeMap //pass by value
-	enc := gob.NewEncoder(con)
-	errEnc := enc.Encode(myNodeMap)
-	checkErr(errEnc)
-	fmt.Println(GetLocalContainerName()+" has sent", myNodeMap)
 }
 
 /*
 SERVER
 */
 
-func GossipHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(GetLocalContainerName(), "HAS RECEIVED MESSAGE!")
-	w.Header().Set("Content-Type", "application/json")
-	if r.Body == nil {
-		http.Error(w, "Please send a request body", 400)
-		return
-	}
-	var message Message
-	err := json.NewDecoder(r.Body).Decode(&message)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	// Business logic
-	fmt.Println(message.Msg)
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(message) //Writing the message back
-}
-
-// func (g *Gossip) ServerStart() {
-// 	fmt.Println("Starting server...")
-// 	dataStream, err := net.Listen(CONN_TYPE, CONN_PORT)
-// 	checkErr(err)
-// 	defer dataStream.Close()
-// 	for {
-// 		con, err := dataStream.Accept()
-// 		checkErr(err)
-// 		go g.listenMsg(con)
-// 	}
-// }
-
 //Helper functions for gossip.serverStart
-func (g *Gossip) listenMsg(con net.Conn) {
-	dec := gob.NewDecoder(con)
-	var senderNodeMap map[string]Node
-	err := dec.Decode(&senderNodeMap)
-	checkErr(err)
-	fmt.Println(GetLocalContainerName()+" has received", senderNodeMap)
-	updateForSender, returningNodeMap := g.compareAndUpdate(senderNodeMap)
-	sendMsg(con, updateForSender)
-	if updateForSender == "yes" {
-		// Need to give some time for message to be fully sent through the tcp conn
-		time.Sleep(time.Millisecond * 50)
-		sendUpdateNodeMap(con, returningNodeMap)
-	}
-}
 
-func (g *Gossip) compareAndUpdate(senderNodeMap map[string]Node) (string, map[string]Node) {
+func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	g.mu.Lock()
-	fmt.Println("senderNodeMap:", senderNodeMap)
-	fmt.Println("myNodeMap:", g.NodeMap)
-	updateForSender := "no"
-	nodeMapForSender := make(map[string]Node)
+	fmt.Println("Received GossipMessage from", msg.ContainerName)
+	fmt.Println("myNodeMap:", g.CommNodeMap)
+	var updateForSender bool
+	nodeMapForSender := make(map[string]GossipNode)
 	commonNodeCounter := 0
 	senderUniqueNodeCounter := 0
 
-	for senderKey, senderValue := range senderNodeMap {
-		if _, found := g.NodeMap[senderKey]; !found {
+	for senderKey, senderValue := range msg.MyCommNodeMap {
+		if _, found := g.CommNodeMap[senderKey]; !found {
 			// local nodeMap does not contain the node in sender's nodeMap
-			g.NodeMap[senderKey] = senderValue
+			g.CommNodeMap[senderKey] = senderValue
 			senderUniqueNodeCounter += 1
 		} else {
 			commonNodeCounter += 1
 		}
 	}
 
-	if iGotUniqueNodes := len(g.NodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 {
-		fmt.Println("Server has unique nodes!")
-		updateForSender = "yes"
-		for myKey, myValue := range g.NodeMap {
-			if _, found := senderNodeMap[myKey]; !found {
+	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 {
+		fmt.Println(GetLocalContainerName(), "server has unique nodes!")
+		// fmt.Println(updateForSender, "before")
+		updateForSender = true
+		// fmt.Println(updateForSender, "after")
+		for myKey, myValue := range g.CommNodeMap {
+			if _, found := msg.MyCommNodeMap[myKey]; !found {
 				nodeMapForSender[myKey] = myValue
 			}
 		}
+	} else {
+		// fmt.Println(updateForSender, "after")
+		updateForSender = false
+		fmt.Println("No unique nodes in server!")
 	}
 	g.mu.Unlock()
-	fmt.Println("No unique nodes in server!")
-	return updateForSender, nodeMapForSender
-}
-
-func sendMsg(con net.Conn, msg string) {
-	// responseToSender := make([]byte, 1024)
-	fmt.Println("Writing response to sender")
-	_, err := con.Write([]byte(msg))
-	checkErr(err)
-}
-
-func sendUpdateNodeMap(con net.Conn, nodeMap map[string]Node) {
-	enc := gob.NewEncoder(con)
-	err := enc.Encode(nodeMap)
-	checkErr(err)
-	fmt.Println("Server has sent update node map to client!")
+	// fmt.Println(updateForSender, "after2")
+	gossipMessage := GossipMessage{Update: updateForSender, ContainerName: GetLocalContainerName(), MyCommNodeMap: nodeMapForSender}
+	return gossipMessage
 }
 
 //  General helper functions
@@ -355,20 +299,10 @@ func checkErr(err error) {
 	}
 }
 
-func deepCopyMap(originalMap map[string]Node) map[string]Node {
-	newMap := make(map[string]Node)
-	for key, value := range originalMap {
-		newMap[key] = value
-	}
-	return newMap
-}
-
-//HTTP
-// func startHTTPServer() {
-// 	fmt.Println("Starting HTTP Server for gossip")
-// 	router := mux.NewRouter().StrictSlash(true)
-// 	router.HandleFunc("/", defaultHandler).Methods("GET")
-// 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
-// 	router.HandleFunc("/gossip", gossip.GossipHandler).Methods("POST")
-// 	log.Fatal(http.ListenAndServe(":8080", router))
+// func deepCopyMap(originalMap map[string]Node) map[string]Node {
+// 	newMap := make(map[string]Node)
+// 	for key, value := range originalMap {
+// 		newMap[key] = value
+// 	}
+// 	return newMap
 // }
