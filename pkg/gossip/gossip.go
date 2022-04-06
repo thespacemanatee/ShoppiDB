@@ -3,17 +3,7 @@ package gossip
 /*
 4. Membership history :) Add/Delete new nodes. snapshot of nodeMap with timestamp can be stored onto the db.
 */
-/*
- System design for gossip:
-	1. Gossip should have its own http.Client created in a goroutine that deals entirely
-	with the client logic i.e. sending out its node structure periodically.
-	2. Server: create a function in gossip that starts the http.Server. Main() will call the
-	gossip function which will call the http_api function.
-	3. Server should still send back the feedback for the client to update its gossip.CommNodeMap and gossip.VirtualNodeMap.
 
-*/
-// handler should be able to return what it received, but it does not return anything. Need to figure out how to get the value.
-// 1. Global variable 2. Read handler doc 3. Google/stackoverflow
 
 import (
 	"bytes"
