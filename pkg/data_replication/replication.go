@@ -22,8 +22,8 @@ type Replicator struct {
 	W             int
 	NodeStructure [4]int
 	WriteCheck    map[int]bool
-	RevertValues  map[int]string
-	ReadCheck     map[int]bool
+	HandoffCheck  map[int]bool
+	ReadCheck     map[int]string
 	Rdb           redis.Client
 	HttpClient    *http.Client
 	mu            sync.Mutex
@@ -36,14 +36,16 @@ type ReplicationMessage struct {
 	DatabaseMessage     redisDB.DatabaseMessage `json:"databasemessage"`
 	MessageCode         int                     `json:"messagecode"`
 	// 0 - failed write
-	// 1 - successful write
+	// 1 - ACK write
 	// 2 - replication data
 	// 3 - hinted handoff
 	// 4 -failed read
-	// 5 - successful read
+	// 5 - ACK read
 	// 6 - key data
-	// 7 - revert write
-	// 8 - success revert
+	// 7 - commit
+	// 8 - ACK commit
+	// 9 - ACK handoff response
+	// 10 - handoff commit
 }
 
 func (r *Replicator) SendReplicationMessage(httpClient *http.Client, msg ReplicationMessage) (failedConn int, failedTarget int) {
@@ -75,7 +77,7 @@ func (r *Replicator) SendReplicationMessage(httpClient *http.Client, msg Replica
 
 // starts replication processs
 // needs to be updated to use node structure from gossip
-func (r *Replicator) ReplicateWrites(data redisDB.DatabaseMessage) {
+func (r *Replicator) ReplicateWrites(data redisDB.DatabaseMessage) bool {
 	fmt.Println("Node: " + (r.Id) + " begining replication")
 	id, err := strconv.Atoi(r.Id)
 	if err != nil {
@@ -99,11 +101,12 @@ func (r *Replicator) ReplicateWrites(data redisDB.DatabaseMessage) {
 	// sents to nodes next in priority list
 	if failedConnections > 0 {
 		for {
-			if failedConnections == 0 {
+			if failedConnections == 0 || startingPt == id {
 				break
 			}
 			newTargets := r.getNodes(failedConnections, startingPt)
 			for _, target := range newTargets {
+				// sending handoff mesages
 				handoffMsg := ReplicationMessage{SenderId: id, Dest: target, IntendedRecipientId: failedTargets[count], DatabaseMessage: data, MessageCode: 3}
 				res, _ := r.SendReplicationMessage(r.HttpClient, handoffMsg)
 				if res == 0 {
@@ -125,32 +128,45 @@ func (r *Replicator) ReplicateWrites(data redisDB.DatabaseMessage) {
 	}
 	time.Sleep(time.Second * 1)
 	fmt.Println("Results for write replication")
-	fmt.Println(r.WriteCheck)
 	quorumRes := r.checkWriteQuorum()
-	if !quorumRes {
-		// write quorum faild, reverting values
-		fmt.Println("reverting values")
-		for targetId, oldValue := range r.RevertValues {
-			msg := ReplicationMessage{SenderId: id, Dest: targetId, DatabaseMessage: redisDB.DatabaseMessage{Key: data.Key, Value: oldValue}, MessageCode: 7}
-			res, t := r.SendReplicationMessage(r.HttpClient, msg)
-			if res == 1 {
-				fmt.Println("Message to " + strconv.Itoa(t) + " failed to revert")
+	if quorumRes {
+		// write quorum passed, send values to nodes
+		fmt.Println("sending values to nodes that were contactable")
+		for targetId, res := range r.WriteCheck {
+			if res {
+				// sends values to these nodes
+				msg := ReplicationMessage{SenderId: id, Dest: targetId, DatabaseMessage: data, MessageCode: 7}
+				res, t := r.SendReplicationMessage(r.HttpClient, msg)
+				if res == 1 {
+					fmt.Println("Message to " + strconv.Itoa(t) + " failed to connect")
+				}
+			}
+		}
+		for targetId, res := range r.HandoffCheck {
+			if res {
+				msg := ReplicationMessage{SenderId: id, Dest: targetId, DatabaseMessage: data, MessageCode: 10}
+				res, t := r.SendReplicationMessage(r.HttpClient, msg)
+				if res == 1 {
+					fmt.Println("Message to " + strconv.Itoa(t) + " failed to connect")
+				}
 			}
 		}
 	}
 	fmt.Println("Write quorum results is :" + strconv.FormatBool(quorumRes))
+	return quorumRes
 }
 
 // starts replication processs
 // needs to be updated to use node structure from gossip
-func (r *Replicator) ReplicateReads(key redisDB.DatabaseMessage) {
+func (r *Replicator) ReplicateReads(key redisDB.DatabaseMessage) (bool, string) {
 	fmt.Println("Node: " + (r.Id) + " begining replication")
 	id, err := strconv.Atoi(r.Id)
 	if err != nil {
 		fmt.Println(err)
 	}
-	r.ReadCheck = make(map[int]bool)
+	r.ReadCheck = make(map[int]string)
 	targets := r.getNodes(r.N-1, id+1)
+	// checks N-1 nodes in preference list
 	for _, target := range targets {
 		msg := ReplicationMessage{SenderId: id, Dest: target, DatabaseMessage: key, MessageCode: 6}
 		res, t := r.SendReplicationMessage(r.HttpClient, msg)
@@ -162,8 +178,9 @@ func (r *Replicator) ReplicateReads(key redisDB.DatabaseMessage) {
 	time.Sleep(time.Second * 1)
 	fmt.Println("Results for read replication")
 	fmt.Println(r.ReadCheck)
-	res := r.checkReadQuorum()
+	res, val := r.checkReadQuorum()
 	fmt.Println(res)
+	return res, val
 }
 
 func checkErr(err error) {
@@ -226,6 +243,12 @@ func (r *Replicator) checkWriteQuorum() bool {
 			values = append(values, v)
 		}
 	}
+	// handoff nodes considered when checking against W
+	for _, v := range r.HandoffCheck {
+		if v {
+			values = append(values, v)
+		}
+	}
 	r.mu.Unlock()
 	fmt.Println(len(values))
 	if len(values) < r.W {
@@ -237,41 +260,54 @@ func (r *Replicator) checkWriteQuorum() bool {
 	}
 }
 
-func (r *Replicator) checkReadQuorum() bool {
+func (r *Replicator) checkReadQuorum() (bool, string) {
 	fmt.Println("in check write quorum")
 	fmt.Println(r.ReadCheck)
-	values := []bool{}
+	values := make(map[string]int)
 	r.mu.Lock()
 	for _, v := range r.ReadCheck {
-		if v {
-			values = append(values, v)
+		if values[v] == 0 {
+			values[v] = 1
+		} else {
+			values[v] = values[v] + 1
+		}
+	}
+	max := 0
+	key := ""
+	for k, count := range values {
+		if max < count {
+			max = count
+			key = k
 		}
 	}
 	r.mu.Unlock()
-	fmt.Println(len(values))
-	if len(values) < r.R {
+	fmt.Println(max)
+	if max < r.R {
 		fmt.Println("failed write quorum")
-		return false
+		return false, key
 	} else {
 		fmt.Println("passed write quorum")
-		return true
+		return true, key
 	}
 }
 
-// stores handoff data in redis and tries to send message
+// sends response to handoff message
 func (r *Replicator) HandleHandoff(msg ReplicationMessage) {
-	// needs to add portion for writing to redis
-	// currently always assume able to write
+
+	replyMsg := ReplicationMessage{SenderId: getOwnId(), Dest: msg.SenderId, MessageCode: 9}
+	// send message to indicate handoff message received
+	go r.SendReplicationMessage(r.HttpClient, replyMsg)
+
+}
+
+func (r *Replicator) HandleHandoffCommit(msg ReplicationMessage) {
 	data := msg.DatabaseMessage
 	ctx := context.Background()
 	rdb := r.Rdb
-	err := rdb.Set(ctx, data.Key,data.Value,0).Err()
+	err := rdb.Set(ctx, data.Key, data.Value, 0).Err()
 	if err != nil {
 		panic(err)
 	}
-	replyMsg := ReplicationMessage{SenderId: getOwnId(), Dest: msg.SenderId, MessageCode: 1}
-	// send message to indicate handoff message received
-	go r.SendReplicationMessage(r.HttpClient, replyMsg)
 	msgToIntended := ReplicationMessage{SenderId: getOwnId(), Dest: msg.IntendedRecipientId, DatabaseMessage: msg.DatabaseMessage, MessageCode: 2}
 	for {
 		res, _ := r.SendReplicationMessage(r.HttpClient, msgToIntended)
@@ -287,25 +323,8 @@ func (r *Replicator) HandleHandoff(msg ReplicationMessage) {
 }
 
 func (r *Replicator) HandleWriteResponse(receivedMsg ReplicationMessage) {
-	// need add part for writes to redis
-	// successful write to redis
-	r.mu.Lock()
-	data := receivedMsg.DatabaseMessage
-	ctx := context.Background()
-	rdb := r.Rdb
-	oldValue, err := rdb.Get(ctx, data.Key).Result()
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("this is the oldvalue" + oldValue)
-	}
-	err = rdb.Set(ctx, data.Key, data.Value, 0).Err()
-	if err != nil {
-		panic(err)
-	}
-	// sends old value in case quorum fails and needs to be reverted
-	msg := ReplicationMessage{SenderId: getOwnId(), Dest: receivedMsg.SenderId, DatabaseMessage: redisDB.DatabaseMessage{Key: data.Key, Value: oldValue}, MessageCode: 1}
+	msg := ReplicationMessage{SenderId: getOwnId(), Dest: receivedMsg.SenderId, MessageCode: 1}
 	go r.SendReplicationMessage(r.HttpClient, msg)
-	r.mu.Unlock()
 }
 
 func (r *Replicator) HandleReadResponse(receivedMsg ReplicationMessage) {
@@ -339,23 +358,21 @@ func (r *Replicator) AddSuccessfulWrite(id int) {
 	fmt.Println(r.WriteCheck)
 }
 
-func (r *Replicator) AddSuccessfulRead(id int) {
+func (r *Replicator) AddSuccessfulRead(msg ReplicationMessage) {
 	r.mu.Lock()
-	r.ReadCheck[id] = true
+	r.ReadCheck[msg.SenderId] = msg.DatabaseMessage.Value
 	r.mu.Unlock()
 	fmt.Println(r.ReadCheck)
 }
 
-func (r *Replicator) AddRevertValues(msg ReplicationMessage) {
+func (r *Replicator) AddSuccessfulHandoff(id int) {
 	r.mu.Lock()
-	if &msg.DatabaseMessage.Value != nil {
-		fmt.Println("added old revert value" + msg.DatabaseMessage.Value)
-		r.RevertValues[msg.SenderId] = msg.DatabaseMessage.Value
-	}
-	r.mu.Unlock()
+	r.HandoffCheck[id] = true
+	r.mu.Lock()
+	fmt.Println(r.HandoffCheck)
 }
 
-func (r *Replicator) HandleRevert(msg ReplicationMessage) {
+func (r *Replicator) HandleCommit(msg ReplicationMessage) {
 	r.mu.Lock()
 	data := msg.DatabaseMessage
 	ctx := context.Background()
@@ -364,7 +381,7 @@ func (r *Replicator) HandleRevert(msg ReplicationMessage) {
 	if err != nil {
 		panic(err)
 	}
-	// sends response to indicate successful revert
+	// sends response to indicate successful commit
 	replyMsg := ReplicationMessage{SenderId: getOwnId(), Dest: msg.SenderId, MessageCode: 8}
 	go r.SendReplicationMessage(r.HttpClient, replyMsg)
 	r.mu.Unlock()

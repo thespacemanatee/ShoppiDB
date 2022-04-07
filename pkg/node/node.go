@@ -51,10 +51,9 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	case 1:
 		{
-			// success write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful write")
+			// successful response from node write
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful response from node write")
 			n.Replicator.AddSuccessfulWrite(msg.SenderId)
-			n.Replicator.AddRevertValues(msg)
 		}
 	case 2:
 		{
@@ -76,7 +75,7 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 	case 5:
 		{
 			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read")
-			n.Replicator.AddSuccessfulRead(msg.SenderId)
+			n.Replicator.AddSuccessfulRead(msg)
 		}
 	case 6:
 		{
@@ -85,12 +84,23 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	case 7:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " reverting data")
-			go n.Replicator.HandleRevert(msg)
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " committing data")
+			go n.Replicator.HandleCommit(msg)
 		}
 	case 8:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful revert data")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful commit data")
+		}
+	case 9:
+		{
+			// successful response from handoff node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful write")
+			n.Replicator.AddSuccessfulHandoff(msg.SenderId)
+		}
+	case 10:
+		{
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful handoff commit")
+			go n.Replicator.HandleHandoffCommit(msg)
 		}
 	default:
 		{
@@ -142,7 +152,7 @@ func GetHTTPClient() *http.Client {
 		DisableCompression: true,
 	}
 	client := &http.Client{
-		Timeout:   600 * time.Millisecond,
+		Timeout:   300 * time.Millisecond,
 		Transport: tr,
 	}
 	return client

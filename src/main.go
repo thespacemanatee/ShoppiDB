@@ -24,7 +24,7 @@ func main() {
 	id := os.Getenv("NODE_ID")
 	nodeStructure := [4]int{1, 2, 3, 4}
 	httpClient := nodePkg.GetHTTPClient()
-	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, NodeStructure: nodeStructure, HttpClient: httpClient, RevertValues: make(map[int]string), Rdb: *redisDB.GetDBClient()}
+	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, NodeStructure: nodeStructure, HttpClient: httpClient, Rdb: *redisDB.GetDBClient()}
 	node := nodePkg.Node{Replicator: &replicator}
 	go node.StartHTTPServer()
 	if id == "1" {
