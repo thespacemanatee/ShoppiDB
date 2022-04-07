@@ -1,6 +1,17 @@
-import { Breadcrumb } from "antd"
+import { Breadcrumb, Button } from "antd"
+import axios from "axios"
 
 export default function VideoSurveillance() {
+  const handleAddToCart = async () => {
+    try {
+      await axios.post("http://localhost:8000/get", {
+        key : "key"
+      })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   return (
     <div className="h-full min-h-screen">
       <Breadcrumb>
@@ -16,6 +27,9 @@ export default function VideoSurveillance() {
             />
           ))}
       </div>
+      <Button type="primary" shape="round" onClick={handleAddToCart}>
+        Add to Cart
+      </Button>
     </div>
   )
 }
