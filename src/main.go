@@ -15,7 +15,7 @@ import (
 	"github.com/k0kubun/pp/v3"
 )
 
-var node data_versioning.Node
+var node data_versioning.NodeId
 var localDataObject data_versioning.DataObject
 
 func main() {

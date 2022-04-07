@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type Node string
+type NodeId string
 
 type Counter int
 
@@ -14,7 +14,7 @@ type Clock struct {
 	LastUpdated int64
 }
 
-type VectorClock map[Node]Clock
+type VectorClock map[NodeId]Clock
 
 type DataObject struct {
 	ObjectId string
@@ -27,12 +27,12 @@ func NewDataObject(id string, rawData json.RawMessage) DataObject {
 	return DataObject{
 		ObjectId: id,
 		RawData:  rawData,
-		Version:  make(map[Node]Clock),
+		Version:  make(map[NodeId]Clock),
 	}
 }
 
 // UpdateVectorClock updates a node's clock in the object's vector clock, or generates one if this is a new object.
-func UpdateVectorClock(node Node, vectorClock VectorClock) {
+func UpdateVectorClock(node NodeId, vectorClock VectorClock) {
 	if clock, exists := vectorClock[node]; exists {
 		clock.Counter += 1
 		vectorClock[node] = clock
