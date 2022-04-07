@@ -4,6 +4,9 @@ import (
 	"ShoppiDB/pkg/byzantine"
 	replication "ShoppiDB/pkg/data_replication"
 	gossip "ShoppiDB/pkg/gossip"
+	redisDB "ShoppiDB/pkg/redisDB"
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -132,6 +135,54 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
 }
 
+func getHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Request for GET function")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var message redisDB.DatabaseMessage
+	err := json.NewDecoder(r.Body).Decode(&message)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	ctx := context.Background()
+	rdb := redisDB.GetDBClient()
+	val, err := rdb.Get(ctx, message.Key).Result()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("key: ", val)
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(val)
+}
+
+func putHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Request for PUT function")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var message redisDB.DatabaseMessage
+	err := json.NewDecoder(r.Body).Decode(&message)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	ctx := context.Background()
+	rdb := redisDB.GetDBClient()
+	err = rdb.Set(ctx, message.Key, message.Value, 0).Err()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(message)
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(message)
+}
+
 func (n *Node) StartHTTPServer() {
 	fmt.Println("Starting HTTP Server")
 	router := mux.NewRouter().StrictSlash(true)
@@ -139,6 +190,8 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
+	router.HandleFunc("/get", getHandler).Methods("POST")
+	router.HandleFunc("/put", putHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -162,6 +215,38 @@ func GetHTTPClient() *http.Client {
 func (n *Node) BasicHTTPGET(nodeId string, httpClient *http.Client) {
 	pp.Println("To be sending message to " + nodeId)
 	req, err := http.NewRequest("GET", "http://"+nodeId+":8080/", nil)
+	checkErr(err)
+	resp, err := httpClient.Do(req)
+	checkErr(err)
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	checkErr(err)
+	pp.Println(string(b))
+	time.Sleep(time.Second * 5)
+}
+
+func (n *Node) DbPUT(nodeId string, httpClient *http.Client, value string) {
+	pp.Println("To be sending message to " + nodeId)
+	msg := redisDB.DatabaseMessage{Key: "key", Value: value}
+	msgJson, err := json.Marshal(msg)
+	checkErr(err)
+	req, err := http.NewRequest(http.MethodPost, "http://"+nodeId+":8080/put", bytes.NewBuffer(msgJson))
+	checkErr(err)
+	resp, err := httpClient.Do(req)
+	checkErr(err)
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	checkErr(err)
+	pp.Println(string(b))
+	time.Sleep(time.Second * 5)
+}
+
+func (n *Node) DbGET(nodeId string, httpClient *http.Client) {
+	pp.Println("To be sending message to " + nodeId)
+	msg := redisDB.DatabaseMessage{Key: "key"}
+	msgJson, err := json.Marshal(msg)
+	checkErr(err)
+	req, err := http.NewRequest(http.MethodPost, "http://"+nodeId+":8080/get", bytes.NewBuffer(msgJson))
 	checkErr(err)
 	resp, err := httpClient.Do(req)
 	checkErr(err)
