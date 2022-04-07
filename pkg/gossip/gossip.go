@@ -4,7 +4,6 @@ package gossip
 4. Membership history :) Add/Delete new nodes. snapshot of nodeMap with timestamp can be stored onto the db.
 */
 
-
 import (
 	"bytes"
 	"encoding/json"
@@ -112,7 +111,10 @@ func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
 	checkErr(err2)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err3 := client.Do(req)
-	checkErr(err3)
+	if err3 != nil {
+		fmt.Println("HTTP call failed:", err3)
+		return
+	}
 	defer resp.Body.Close()
 	var respMsg GossipMessage
 	json.NewDecoder(resp.Body).Decode(&respMsg)
@@ -288,6 +290,7 @@ func GetLocalNodeID() string {
 func checkErr(err error) {
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 }
 
