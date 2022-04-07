@@ -1,6 +1,11 @@
 module ShoppiDB
 
-go 1.17
+go 1.18
+
+require (
+	github.com/go-redis/redis/v8 v8.11.5
+	github.com/k0kubun/pp/v3 v3.1.0
+)
 
 require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
