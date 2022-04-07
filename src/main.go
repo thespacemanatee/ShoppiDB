@@ -2,11 +2,11 @@ package main
 
 import (
 	"ShoppiDB/pkg/data_versioning"
-	gossip "ShoppiDB/pkg/gossipProtocol"
 	nodePkg "ShoppiDB/pkg/node"
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"strconv"
@@ -20,15 +20,15 @@ var localDataObject data_versioning.DataObject
 
 func main() {
 	// done := make(chan struct{})
-	localNode := gossip.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName()}
-	toCommunicate := gossip.Gossip{NodeMap: make(map[string]gossip.Node)}
+	// localNode := gossip.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName()}
+	// toCommunicate := gossip.Gossip{NodeMap: make(map[string]gossip.Node)}
 
-	//adding localNode into node map
-	toCommunicate.NodeMap[gossip.GetLocalNodeID()] = localNode
+	// //adding localNode into node map
+	// toCommunicate.NodeMap[gossip.GetLocalNodeID()] = localNode
 
-	go toCommunicate.ServerStart()
-	go toCommunicate.ClientStart()
-	time.Sleep(time.Minute * 5)
+	// go toCommunicate.ServerStart()
+	// go toCommunicate.ClientStart()
+	// time.Sleep(time.Minute * 5)
 
 	id := os.Getenv("NODE_ID")
 	node := nodePkg.Node{}
@@ -47,8 +47,23 @@ func main() {
 	checkErr(err)
 	time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
 	for {
-		node.BasicHTTPGET(nodeDNS, httpClient)
+		value := generateNonce()
+		node.DbPUT(nodeDNS, httpClient, value)
+		time.Sleep(1 * time.Second)
+		node.DbGET(nodeDNS, httpClient)
+		// node.BasicHTTPGET(nodeDNS, httpClient)
+
 	}
+}
+
+func generateNonce() string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+	s := make([]rune, 8)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(s)
 }
 
 //Example Code for socket

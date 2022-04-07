@@ -82,37 +82,6 @@ services:
       - devnode4:/redis/volume
     networks:
       - db
-      build:
-        context: ./
-        dockerfile: DockerFile_RedisNodeDev
-      container_name: node3
-      environment:
-        - NODE_ID=3
-        - RACE_DETECTOR=1
-        - BUILD_ARGS=./src
-        - SEEDNODES=0 1 
-        - MEMBERSHIP=yes
-      volumes:
-        - .:/app
-        - devnode3:/redis/volume
-      networks:
-        - db
-  node4: #DNS name 
-    build:
-      context: ./
-      dockerfile: DockerFile_RedisNodeDev
-    container_name: node4
-    environment:
-      - NODE_ID=4
-      - RACE_DETECTOR=1
-      - BUILD_ARGS=./src
-      - SEEDNODES=0 1 
-      - MEMBERSHIP=yes
-    volumes:
-      - .:/app
-      - devnode4:/redis/volume
-    networks:
-      - db
   node5: #DNS name 
     build:
       context: ./
