@@ -136,6 +136,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
 	fmt.Println("Request for GET function")
 	w.Header().Set("Content-Type", "application/json")
 	if r.Body == nil {
@@ -160,6 +161,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func putHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
 	fmt.Println("Request for PUT function")
 	w.Header().Set("Content-Type", "application/json")
 	if r.Body == nil {
@@ -269,4 +271,8 @@ func httpCheckErr(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+}
+
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }
