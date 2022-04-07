@@ -1,3 +1,10 @@
+export interface FoodItem {
+  id: string
+  name: string
+  price: number
+  imageUrl: string
+}
+
 export type Item = {
   id: string
   name: string
@@ -9,11 +16,11 @@ export type ShoppingCart = {
   items: Item[]
 }
 
-export type Clock = {
+export type VectorClock = {
   counter: number
   lastUpdated: number
 }
 
 export type Context = {
-  [nodeId: string]: Clock
+  [nodeId: string]: VectorClock
 }
