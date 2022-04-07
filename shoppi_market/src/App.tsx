@@ -10,6 +10,7 @@ function App() {
       <Route path="/" element={<ContentLayout />}>
         <Route path="home" element={<Home />} />
         <Route path="cart" element={undefined} />
+        <Route path="debug" element={undefined} />
         <Route index element={<Navigate to="home" replace />} />
       </Route>
     </Routes>
