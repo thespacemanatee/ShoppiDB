@@ -1,7 +1,6 @@
 package main
 
 import (
-	"ShoppiDB/pkg/consistent_hashing"
 	"ShoppiDB/pkg/data_versioning"
 	gossip "ShoppiDB/pkg/gossip"
 	nodePkg "ShoppiDB/pkg/node"
@@ -20,11 +19,16 @@ var node data_versioning.Node
 var localDataObject data_versioning.DataObject
 
 func main() {
-	gossipNode := gossip.GossipNode{ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership()}
+	tokenSet := nodePkg.GenTokenSet()
+	gossipNode := gossip.GossipNode{ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership(), TokenSet: tokenSet}
 	localCommNodeMap := make(map[string]gossip.GossipNode)
 	localCommNodeMap[gossip.GetLocalNodeID()] = gossipNode
 	httpClient := nodePkg.GetHTTPClient()
-	localNode := nodePkg.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient}}
+	localVirtualNodeMap := make(map[[2]int]gossip.GossipNode)
+	for _, rnge := range tokenSet {
+		localVirtualNodeMap[rnge] = gossipNode
+	}
+	localNode := nodePkg.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient, VirtualNodeMap: localVirtualNodeMap}}
 
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
 

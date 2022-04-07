@@ -2,7 +2,6 @@ package node
 
 import (
 	"ShoppiDB/pkg/byzantine"
-	conHashing "ShoppiDB/pkg/consistent_hashing"
 	replication "ShoppiDB/pkg/data_replication"
 	gossip "ShoppiDB/pkg/gossip"
 	"encoding/json"
@@ -24,14 +23,14 @@ import (
 type Node struct {
 	nonce         []string
 	ContainerName string
-	TokenSet      [][]int
+	TokenSet      [][2]int
 	Membership    bool
 	Replicator    *replication.Replicator
 	Gossiper      gossip.Gossip
 
-	IsSeed            bool
-	NodeRingPositions []int
-	Ring              *conHashing.Ring
+	// IsSeed            bool
+	// NodeRingPositions []int
+	// Ring              *conHashing.Ring
 }
 
 func (n *Node) updateNonce(nonce string) {
@@ -200,44 +199,15 @@ func getNodeTotal() int {
 }
 
 /**
-* Returns a new node
-*	if is a seed node, create a new ring
+* Returns a nested array consisting of the assigned token set
+* Eg. [[1,2], [4,5],[24,25]]
 *
-* @param nodeId The id for the new node
-* @param seedNodes The array containing id of seed nodes
 *
-* @return a new node
+* @return a nested array consisting of the assigned token set
  */
-// func NewNode(nodeId string, seedNodes []string) Node {
-// 	var isSeed = false
-// 	for _, s := range seedNodes {
-// 		if nodeId == s {
-// 			isSeed = true
-// 		}
-// 	}
 
-// 	tokenSet := GenTokenSet()
-
-// 	if isSeed {
-// 		var ring = conHashing.NewRing()
-// 		ring.NodesMap[nodeId] = []int{1}
-// 		return Node {
-// 			ContainerName: nodeId,
-// 			IsSeed: isSeed,
-// 			Ring: ring,
-// 			TokenSet: tokenSet,
-// 		}
-// 	} else {
-// 		return Node {
-// 			ContainerName: nodeId,
-// 			IsSeed: false,
-// 			TokenSet: tokenSet,
-// 		}
-// 	}
-// }
-
-func GenTokenSet() [][]int {
-	var tokenSet [][]int
+func GenTokenSet() [][2]int {
+	var tokenSet [][2]int
 	numNodes := getNodeTotal()
 	numTokens := math.Floor(64 / float64(numNodes))
 	for i := 0; i < int(numTokens); i++ {
@@ -248,7 +218,7 @@ func GenTokenSet() [][]int {
 		// check if the token is alr assigned
 		dup := false
 		for {
-			for _,t := range tokenSet {
+			for _, t := range tokenSet {
 				if randInt == t[0] {
 					dup = true
 					randInt = rand.Intn(max-min) + min
@@ -260,46 +230,10 @@ func GenTokenSet() [][]int {
 		}
 
 		if randInt < 63 {
-			tokenSet = append(tokenSet, []int{randInt, randInt + 1})
+			tokenSet = append(tokenSet, [2]int{randInt, randInt + 1})
 		} else {
-			tokenSet = append(tokenSet, []int{randInt, 0})
+			tokenSet = append(tokenSet, [2]int{randInt, 0})
 		}
 	}
 	return tokenSet
 }
-
-/**
-* Update the position of its virtual nodes assigned
-*
-* @param node The node to update
-* @param numNodes The total number of nodes
-*
- */
-// func UpdateNode(node Node, numNodes string) {
-// 	id, _ := strconv.Atoi(node.ContainerName)
-// 	totalNodes, _ := strconv.Atoi(numNodes)
-// 	var nodeRingPositions []int
-// 	for i := id; i <= totalNodes*totalNodes; i += totalNodes {
-// 		nodeRingPositions = append(nodeRingPositions, i)
-// 	}
-// 	node.NodeRingPositions = nodeRingPositions
-// 	fmt.Println(node.NodeRingPositions)
-// }
-
-/**
-* Update the position of its virtual nodes assigned to seed node
-*
-* @param node The node to update
-* @param numNodes The total number of nodesr
-*
- */
-// func UpdateSeedNode(node Node, senderNodeId string) {
-// 	node.Ring.MaxID += 1
-// 	var nodeRingPositions []int
-// 	id, _ := strconv.Atoi(node.ContainerName)
-// 	for i := id; i < node.Ring.MaxID*node.Ring.MaxID; i += node.Ring.MaxID {
-// 		nodeRingPositions = append(nodeRingPositions, i)
-// 	}
-// 	fmt.Println(nodeRingPositions)
-// 	node.Ring.NodesMap[senderNodeId] = nodeRingPositions
-// }

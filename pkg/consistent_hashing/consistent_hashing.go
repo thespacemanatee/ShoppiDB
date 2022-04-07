@@ -7,16 +7,6 @@ import (
 )
 var hashRange = new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil)
 
-type Ring struct {
-    MaxID int
-	NodesMap map[string][]int
-}
-
-func NewRing() *Ring {
-    nodesMap := make(map[string][]int)
-	return &Ring{MaxID:1, NodesMap: nodesMap}
-}
-
 
 /**
 * Returns the position indicated by the hash
