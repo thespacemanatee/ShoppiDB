@@ -3,6 +3,7 @@ package node
 import (
 	"ShoppiDB/pkg/byzantine"
 	replication "ShoppiDB/pkg/data_replication"
+	gossip "ShoppiDB/pkg/gossip"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -18,14 +19,33 @@ import (
 )
 
 type Node struct {
-	nonce      []string
-	Replicator *replication.Replicator
+	nonce         []string
+	ContainerName string
+	TokenSet      [][]int
+	Membership    bool
+	Replicator    *replication.Replicator
+	Gossiper      gossip.Gossip
 }
 
 func (n *Node) updateNonce(nonce string) {
 	n.nonce = append(n.nonce, nonce)
 	fmt.Println("Appended Nonce")
 	fmt.Println(n.nonce)
+}
+
+func (n *Node) gossipHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var msg gossip.GossipMessage
+	err := json.NewDecoder(r.Body).Decode(&msg)
+	httpCheckErr(w, err)
+	response := n.Gossiper.CompareAndUpdate(msg)
+
+	json.NewEncoder(w).Encode(response) //Writing the message back
+
 }
 
 func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,17 +94,18 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	case 5:
 		{
-			fmt.Println("Received from Node: "+ strconv.Itoa(msg.SenderId)+ " successful read")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read")
 			n.Replicator.AddSuccessfulRead(msg.SenderId)
 		}
 	case 6:
 		{
-			fmt.Println("Received from Node: "+ strconv.Itoa(msg.SenderId)+ " key data")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " key data")
 			go n.Replicator.HandleReadResponse(msg)
 		}
-	default:{
-		fmt.Println("Wrong message code used")
-	}
+	default:
+		{
+			fmt.Println("Wrong message code used")
+		}
 	}
 }
 
@@ -117,6 +138,7 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/", defaultHandler).Methods("GET")
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
+	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -154,5 +176,12 @@ func checkErr(err error) {
 	if err != nil {
 		fmt.Println("ERROR")
 		fmt.Println(err)
+	}
+}
+
+func httpCheckErr(w http.ResponseWriter, err error) {
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
 	}
 }

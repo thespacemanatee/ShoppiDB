@@ -2,7 +2,7 @@ package main
 
 import (
 	"ShoppiDB/pkg/data_versioning"
-	gossip "ShoppiDB/pkg/gossipProtocol"
+	gossip "ShoppiDB/pkg/gossip"
 	nodePkg "ShoppiDB/pkg/node"
 	"encoding/gob"
 	"errors"
@@ -19,36 +19,18 @@ var node data_versioning.Node
 var localDataObject data_versioning.DataObject
 
 func main() {
-	// done := make(chan struct{})
-	localNode := gossip.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName()}
-	toCommunicate := gossip.Gossip{NodeMap: make(map[string]gossip.Node)}
-
-	//adding localNode into node map
-	toCommunicate.NodeMap[gossip.GetLocalNodeID()] = localNode
-
-	go toCommunicate.ServerStart()
-	go toCommunicate.ClientStart()
-	time.Sleep(time.Minute * 5)
-
-	id := os.Getenv("NODE_ID")
-	node := nodePkg.Node{}
-	go node.StartHTTPServer()
+	gossipNode := gossip.GossipNode{ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership()}
+	localCommNodeMap := make(map[string]gossip.GossipNode)
+	localCommNodeMap[gossip.GetLocalNodeID()] = gossipNode
 	httpClient := nodePkg.GetHTTPClient()
-	var oppId int
-	switch id {
-	case "1":
-		oppId = 2
-	case "2":
-		oppId = 1
-	default:
-		oppId = 0
-	}
-	nodeDNS, err := getNodeDNS(oppId)
-	checkErr(err)
-	time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
-	for {
-		node.BasicHTTPGET(nodeDNS, httpClient)
-	}
+	localNode := nodePkg.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient}}
+
+	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
+
+	go localNode.StartHTTPServer()
+	time.Sleep(time.Second * 10)
+	go localNode.Gossiper.Start()
+	time.Sleep(time.Minute * 5)
 }
 
 //Example Code for socket
