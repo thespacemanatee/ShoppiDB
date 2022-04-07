@@ -13,11 +13,15 @@ export const getCartByKey = async (key: string) => {
   }
 }
 
-export const putCart = async (value: ShoppingCart, context?: Context) => {
+export const putCart = async (
+  key: string,
+  value: ShoppingCart,
+  context?: Context
+) => {
   try {
     return await axios.post("http://localhost:8000/put", {
-      key: nanoid(),
-      value,
+      key,
+      value: JSON.stringify(value),
       context,
     })
   } catch (err) {

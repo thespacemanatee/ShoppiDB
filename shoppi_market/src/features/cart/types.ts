@@ -9,12 +9,10 @@ export type Item = {
   id: string
   name: string
   price: number
-  quantity: number
+  // quantity: number
 }
 
-export type ShoppingCart = {
-  items: Item[]
-}
+export type ShoppingCart = Item[]
 
 export type VectorClock = {
   counter: number

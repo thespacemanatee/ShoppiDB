@@ -1,40 +1,36 @@
 package data_versioning
 
 import (
-	"encoding/json"
 	"time"
 )
 
-type NodeId string
-
-type Counter int
-
 type Clock struct {
-	Counter     Counter
+	Counter     int64
 	LastUpdated int64
 }
 
-type VectorClock map[NodeId]Clock
+type VectorClock map[string]Clock
 
 type DataObject struct {
-	ObjectId string
-	RawData  json.RawMessage
-	Version  VectorClock
+	Key     string
+	Value   string
+	Context VectorClock
 }
 
 // NewDataObject returns a new DataObject.
-func NewDataObject(id string, rawData json.RawMessage) DataObject {
+func NewDataObject(key string, rawData string) DataObject {
 	return DataObject{
-		ObjectId: id,
-		RawData:  rawData,
-		Version:  make(map[NodeId]Clock),
+		Key:     key,
+		Value:   rawData,
+		Context: make(map[string]Clock),
 	}
 }
 
 // UpdateVectorClock updates a node's clock in the object's vector clock, or generates one if this is a new object.
-func UpdateVectorClock(node NodeId, vectorClock VectorClock) {
+func UpdateVectorClock(node string, vectorClock VectorClock) {
 	if clock, exists := vectorClock[node]; exists {
 		clock.Counter += 1
+		clock.LastUpdated = time.Now().UnixMilli()
 		vectorClock[node] = clock
 	} else {
 		vectorClock[node] = Clock{Counter: 1, LastUpdated: time.Now().UnixMilli()}
@@ -47,13 +43,13 @@ func DeConflictDataObjects(a DataObject, b DataObject, dataObjects map[string]Da
 	bIsStale := true
 
 	// Check if a is stale
-	for node, _ := range a.Version {
-		aIsStale = aIsStale && (a.Version[node].Counter <= b.Version[node].Counter)
+	for node, _ := range a.Context {
+		aIsStale = aIsStale && (a.Context[node].Counter <= b.Context[node].Counter)
 	}
 
 	// Check if b is stale
-	for node, _ := range b.Version {
-		bIsStale = bIsStale && (b.Version[node].Counter <= a.Version[node].Counter)
+	for node, _ := range b.Context {
+		bIsStale = bIsStale && (b.Context[node].Counter <= a.Context[node].Counter)
 	}
 
 	newObjects := make(map[string]DataObject)
@@ -62,14 +58,14 @@ func DeConflictDataObjects(a DataObject, b DataObject, dataObjects map[string]Da
 	}
 
 	if aIsStale {
-		newObjects[b.ObjectId] = b
+		newObjects[b.Key] = b
 		return false, newObjects
 	} else if bIsStale {
-		newObjects[a.ObjectId] = a
+		newObjects[a.Key] = a
 		return false, newObjects
 	} else {
-		newObjects[a.ObjectId] = a
-		newObjects[b.ObjectId] = b
+		newObjects[a.Key] = a
+		newObjects[b.Key] = b
 		return true, newObjects
 	}
 }
@@ -82,7 +78,7 @@ func GetResponseDataObjects(dataObjects []DataObject) map[string]DataObject {
 	}
 	// Create a set that always has at least 1 data object (first object in array)
 	conflictingObjects := make(map[string]DataObject)
-	conflictingObjects[dataObjects[0].ObjectId] = dataObjects[0]
+	conflictingObjects[dataObjects[0].Key] = dataObjects[0]
 	for i := 0; i < len(dataObjects); i++ {
 		for j := i + 1; j < len(dataObjects); j++ {
 			_, newObjects := DeConflictDataObjects(dataObjects[i], dataObjects[j], conflictingObjects)

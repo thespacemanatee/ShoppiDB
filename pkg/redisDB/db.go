@@ -2,17 +2,9 @@ package redisDB
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-
 	"github.com/go-redis/redis/v8"
 )
-
-type DatabaseObject struct {
-	Key     string
-	Value   json.RawMessage
-	Context json.RawMessage
-}
 
 func GetDBClient() *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
