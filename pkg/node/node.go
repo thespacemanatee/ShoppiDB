@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/k0kubun/pp/v3"
 )
@@ -194,7 +195,7 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
 	router.HandleFunc("/get", getHandler).Methods("POST")
 	router.HandleFunc("/put", putHandler).Methods("POST")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	log.Fatal(http.ListenAndServe(":8080", handlers.CORS()(router)))
 }
 
 /*

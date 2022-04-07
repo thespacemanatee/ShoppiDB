@@ -4,10 +4,8 @@ import axios from "axios"
 export default function VideoSurveillance() {
   const handleAddToCart = async () => {
     try {
-      await axios.post("http://localhost:8000/put", {
-        data: {
-          cartId: 1,
-        },
+      await axios.post("http://localhost:8000/get", {
+        key : "key"
       })
     } catch (err) {
       console.error(err)
