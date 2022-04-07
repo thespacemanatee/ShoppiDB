@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ShoppiDB/pkg/consistent_hashing"
 	"ShoppiDB/pkg/data_versioning"
 	gossip "ShoppiDB/pkg/gossip"
 	nodePkg "ShoppiDB/pkg/node"
