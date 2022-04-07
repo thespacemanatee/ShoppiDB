@@ -2,6 +2,7 @@ package node
 
 import (
 	"ShoppiDB/pkg/byzantine"
+	conHashing "ShoppiDB/pkg/consistent_hashing"
 	replication "ShoppiDB/pkg/data_replication"
 	gossip "ShoppiDB/pkg/gossip"
 	redisDB "ShoppiDB/pkg/redisDB"
@@ -142,7 +143,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
 }
 
-func getHandler(w http.ResponseWriter, r *http.Request) {
+func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	fmt.Println("Request for GET function")
 	w.Header().Set("Content-Type", "application/json")
@@ -167,7 +168,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(val)
 }
 
-func putHandler(w http.ResponseWriter, r *http.Request) {
+func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	fmt.Println("Request for PUT function")
 	w.Header().Set("Content-Type", "application/json")
@@ -181,15 +182,42 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	ctx := context.Background()
-	rdb := redisDB.GetDBClient()
-	err = rdb.Set(ctx, message.Key, message.Value, 0).Err()
-	if err != nil {
-		panic(err)
+	//After receiving put request, hash the key and check for which node to serve
+	keyHash, _ := conHashing.GetMD5Hash(message.Key).Int64()
+	for vNodeKey, gossipNode := range n.Gossiper.VirtualNodeMap {
+		if hashValueContains(vNodeKey[:], keyHash) { //Iterate to identify the respective physical node handling the hash value
+			if gossipNode.ContainerName == n.ContainerName { //If is this node handling the hash value, proceed to db
+				//**Here has to make a data version and also a data replication before offical write into db
+				ctx := context.Background()
+				rdb := redisDB.GetDBClient()
+				err = rdb.Set(ctx, message.Key, message.Value, 0).Err()
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println(message)
+				w.WriteHeader(http.StatusAccepted)
+				json.NewEncoder(w).Encode(message)
+			} else { //Send the request to the respective node and await for reply
+				msgJson, err := json.Marshal(message)
+				checkErr(err)
+				req, err := http.NewRequest(http.MethodPost, "http://"+gossipNode.ContainerName+":8080/put", bytes.NewBuffer(msgJson))
+				checkErr(err)
+				httpClient := GetHTTPClient()
+				resp, err := httpClient.Do(req)
+				checkErr(err)
+				defer resp.Body.Close()
+				b, err := io.ReadAll(resp.Body)
+				checkErr(err)
+				pp.Println(string(b))
+				fmt.Println(resp.Body)
+				w.WriteHeader(http.StatusAccepted)
+				json.NewEncoder(w).Encode(resp.Body)
+			}
+		}
 	}
-	fmt.Println(message)
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(message)
+	fmt.Println("MISSING HASH")
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode("MISSING HASH")
 }
 
 func (n *Node) StartHTTPServer() {
@@ -199,8 +227,8 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
-	router.HandleFunc("/get", getHandler).Methods("POST")
-	router.HandleFunc("/put", putHandler).Methods("POST")
+	router.HandleFunc("/get", n.getHandler).Methods("POST")
+	router.HandleFunc("/put", n.putHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", handlers.CORS()(router)))
 }
 
@@ -327,4 +355,13 @@ func GenTokenSet() [][2]int {
 		}
 	}
 	return tokenSet
+}
+
+func hashValueContains(s []int, e int64) bool {
+	for _, a := range s {
+		if a == int(e) {
+			return true
+		}
+	}
+	return false
 }
