@@ -32,15 +32,15 @@ type GossipMessage struct {
 
 type GossipNode struct {
 	ContainerName string
-	TokenSet      [][]int
+	TokenSet      [][2]int
 	Membership    bool
 }
 
 type Gossip struct {
-	mu          sync.Mutex
-	CommNodeMap map[string]GossipNode //Map ID to physical node
-	// VirtualNodeMap map[[2]string]GossipNode //Itoa: convert int to string first when populating. Convert to int when reading.
-	HttpClient *http.Client
+	mu             sync.Mutex
+	CommNodeMap    map[string]GossipNode //Map ID to physical node
+	VirtualNodeMap map[[2]int]GossipNode //Itoa: convert int to string first when populating. Convert to int when reading.
+	HttpClient     *http.Client
 }
 
 /*
@@ -159,11 +159,15 @@ func (g *Gossip) recvGossipMsg(msg GossipMessage) {
 	g.mu.Lock()
 	fmt.Println(GetLocalContainerName()+" has received", msg)
 	if msg.Update {
-		for key, value := range msg.MyCommNodeMap {
-			g.CommNodeMap[key] = value
+		for nodeID, gossNode := range msg.MyCommNodeMap {
+			g.CommNodeMap[nodeID] = gossNode
+			for _, rnge := range gossNode.TokenSet {
+				g.VirtualNodeMap[rnge] = gossNode
+			}
 		}
 	}
 	fmt.Println(GetLocalContainerName(), "has", g.CommNodeMap)
+	fmt.Println("VNodeMap", g.VirtualNodeMap)
 	g.mu.Unlock()
 }
 
@@ -173,6 +177,15 @@ SERVER
 
 //Helper functions for gossip.serverStart
 
+/**
+* Return updated GossipMessage after comparing with input GossipMessage
+* 
+* 
+*
+* @param msg The gossip message that is received and compared
+*
+* @return the updated GossipMessage
+ */
 func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	g.mu.Lock()
 	fmt.Println("Received GossipMessage from", msg.ContainerName)
@@ -181,34 +194,47 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	nodeMapForSender := make(map[string]GossipNode)
 	commonNodeCounter := 0
 	senderUniqueNodeCounter := 0
+	var seedNodeTokenSetIsEmpty bool
+	seedNodesArr := getSeedNodes()
+	
+	for _, seed := range seedNodesArr {
+		if gossNode := msg.MyCommNodeMap[seed]; len(gossNode.TokenSet) == 0 {
+			seedNodeTokenSetIsEmpty = true
+		} 
+	}
 
 	for senderKey, senderValue := range msg.MyCommNodeMap {
 		if _, found := g.CommNodeMap[senderKey]; !found {
 			// local nodeMap does not contain the node in sender's nodeMap
 			g.CommNodeMap[senderKey] = senderValue
+			for _, rnge := range senderValue.TokenSet {
+				g.VirtualNodeMap[rnge] = senderValue
+			}
 			senderUniqueNodeCounter += 1
 		} else {
 			commonNodeCounter += 1
 		}
 	}
 
-	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 {
+	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 || seedNodeTokenSetIsEmpty{
 		fmt.Println(GetLocalContainerName(), "server has unique nodes!")
-		// fmt.Println(updateForSender, "before")
 		updateForSender = true
-		// fmt.Println(updateForSender, "after")
 		for myKey, myValue := range g.CommNodeMap {
 			if _, found := msg.MyCommNodeMap[myKey]; !found {
 				nodeMapForSender[myKey] = myValue
+			} 
+			for _, seedNodeID := range seedNodesArr{
+				if myKey == seedNodeID {
+					nodeMapForSender[seedNodeID] = myValue
+				}
 			}
 		}
+
 	} else {
-		// fmt.Println(updateForSender, "after")
 		updateForSender = false
 		fmt.Println("No unique nodes in server!")
 	}
 	g.mu.Unlock()
-	// fmt.Println(updateForSender, "after2")
 	gossipMessage := GossipMessage{Update: updateForSender, ContainerName: GetLocalContainerName(), MyCommNodeMap: nodeMapForSender}
 	return gossipMessage
 }
