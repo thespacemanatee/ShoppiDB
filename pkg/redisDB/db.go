@@ -6,8 +6,12 @@ import (
 
 	"github.com/go-redis/redis/v8"
 )
+type DatabaseMessage struct {
+	Key string `json:"key"`
+	Value string `json:"value"`
+}
 
-func getDBClient() *redis.Client {
+func GetDBClient() *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
@@ -20,7 +24,7 @@ func exampleDB() {
 	ctx := context.Background()
 
 	//Connect to the local db
-	rdb := getDBClient()
+	rdb := GetDBClient()
 
 	//Set Function
 	err := rdb.Set(ctx, "key", "value", 0).Err()

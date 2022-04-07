@@ -1,8 +1,11 @@
 package main
 
 import (
+	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	nodePkg "ShoppiDB/pkg/node"
+	"ShoppiDB/pkg/redisDB"
+	"context"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -19,24 +22,38 @@ var localDataObject data_versioning.DataObject
 
 func main() {
 	id := os.Getenv("NODE_ID")
-	node := nodePkg.Node{}
-	go node.StartHTTPServer()
+	nodeStructure := [4]int{1, 2, 3, 4}
 	httpClient := nodePkg.GetHTTPClient()
-	var oppId int
-	switch id {
-	case "1":
-		oppId = 2
-	case "2":
-		oppId = 1
-	default:
-		oppId = 0
+	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, NodeStructure: nodeStructure, HttpClient: httpClient, RevertValues: make(map[int]string), Rdb: *redisDB.GetDBClient()}
+	node := nodePkg.Node{Replicator: &replicator}
+	go node.StartHTTPServer()
+	if id == "1" {
+		go node.Replicator.ReplicateWrites(redisDB.DatabaseMessage{Key: "hello world", Value: "byebye"})
 	}
-	nodeDNS, err := getNodeDNS(oppId)
-	checkErr(err)
-	time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
 	for {
-		node.BasicHTTPGET(nodeDNS, httpClient)
+		time.Sleep(time.Second * 10)
+		ctx := context.Background()
+
+		rdb := node.Replicator.Rdb
+		oldValue, err := rdb.Get(ctx, "hello world").Result()
+		fmt.Println("this is running in main " + oldValue)
+		fmt.Println(err)
 	}
+	// var oppId int
+	// switch id {
+	// case "1":
+	// 	oppId = 2
+	// case "2":
+	// 	oppId = 1
+	// default:
+	// 	oppId = 0
+	// }
+	// nodeDNS, err := getNodeDNS(oppId)
+	// checkErr(err)
+	// time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
+	// for {
+	// 	node.BasicHTTPGET(nodeDNS, httpClient)
+	// }
 }
 
 //Example Code for socket

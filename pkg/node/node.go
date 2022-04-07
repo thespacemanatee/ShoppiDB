@@ -54,6 +54,7 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 			// success write
 			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful write")
 			n.Replicator.AddSuccessfulWrite(msg.SenderId)
+			n.Replicator.AddRevertValues(msg)
 		}
 	case 2:
 		{
@@ -74,17 +75,27 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	case 5:
 		{
-			fmt.Println("Received from Node: "+ strconv.Itoa(msg.SenderId)+ " successful read")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read")
 			n.Replicator.AddSuccessfulRead(msg.SenderId)
 		}
 	case 6:
 		{
-			fmt.Println("Received from Node: "+ strconv.Itoa(msg.SenderId)+ " key data")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " key data")
 			go n.Replicator.HandleReadResponse(msg)
 		}
-	default:{
-		fmt.Println("Wrong message code used")
-	}
+	case 7:
+		{
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " reverting data")
+			go n.Replicator.HandleRevert(msg)
+		}
+	case 8:
+		{
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful revert data")
+		}
+	default:
+		{
+			fmt.Println("Wrong message code used")
+		}
 	}
 }
 
@@ -131,7 +142,7 @@ func GetHTTPClient() *http.Client {
 		DisableCompression: true,
 	}
 	client := &http.Client{
-		Timeout:   300 * time.Millisecond,
+		Timeout:   600 * time.Millisecond,
 		Transport: tr,
 	}
 	return client
