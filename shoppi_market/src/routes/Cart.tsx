@@ -98,7 +98,7 @@ export default function Cart() {
     <div className="h-full min-h-screen">
       <div className="mt-4 grid grid-cols-4 gap-8">
         {cart.items.map((food, idx) => (
-          <motion.div key={food.id}>
+          <motion.div key={food.id} layout>
             <img
               src={mockData.find((e) => e.id === food.id)?.imageUrl}
               alt={food.name}
