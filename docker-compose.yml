@@ -46,6 +46,7 @@ services:
     container_name: node1
     restart: always
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=1
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -63,6 +64,7 @@ services:
     container_name: node2
     restart: always
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=2
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -96,6 +98,7 @@ services:
     container_name: node4
     restart: always
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=4
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -113,6 +116,7 @@ services:
     container_name: node5
     restart: always
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=5
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -129,6 +133,7 @@ services:
       dockerfile: DockerFile_RedisNodeDev
     container_name: node6
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=6
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -146,6 +151,7 @@ services:
     container_name: node7
     restart: always
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=7
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -163,6 +169,7 @@ services:
     container_name: node8
     restart: always
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=8
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -179,6 +186,7 @@ services:
       dockerfile: DockerFile_RedisNodeDev
     container_name: node9
     environment:
+      - NODE_TOTAL=10
       - NODE_ID=9
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src

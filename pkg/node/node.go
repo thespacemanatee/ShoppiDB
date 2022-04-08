@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/mux"
 	"html"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -20,10 +22,14 @@ import (
 type Node struct {
 	nonce         []string
 	ContainerName string
-	TokenSet      [][]int
+	TokenSet      [][2]int
 	Membership    bool
 	Replicator    *replication.Replicator
 	Gossiper      gossip.Gossip
+
+	// IsSeed            bool
+	// NodeRingPositions []int
+	// Ring              *conHashing.Ring
 }
 
 func (n *Node) updateNonce(nonce string) {
@@ -164,4 +170,50 @@ func httpCheckErr(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+}
+
+func getNodeTotal() int {
+	i, err := strconv.Atoi(os.Getenv("NODE_TOTAL"))
+	checkErr(err)
+	return i
+}
+
+/**
+* Returns a nested array consisting of the assigned token set
+* Eg. [[1,2], [4,5],[24,25]]
+*
+*
+* @return a nested array consisting of the assigned token set
+ */
+
+func GenTokenSet() [][2]int {
+	var tokenSet [][2]int
+	numNodes := getNodeTotal()
+	numTokens := math.Floor(64 / float64(numNodes))
+	for i := 0; i < int(numTokens); i++ {
+		rand.Seed(time.Now().UnixNano())
+		min := 0
+		max := 63
+		randInt := rand.Intn(max-min) + min
+		// check if the token is alr assigned
+		dup := false
+		for {
+			for _, t := range tokenSet {
+				if randInt == t[0] {
+					dup = true
+					randInt = rand.Intn(max-min) + min
+				}
+			}
+			if dup != true {
+				break
+			}
+		}
+
+		if randInt < 63 {
+			tokenSet = append(tokenSet, [2]int{randInt, randInt + 1})
+		} else {
+			tokenSet = append(tokenSet, [2]int{randInt, 0})
+		}
+	}
+	return tokenSet
 }
