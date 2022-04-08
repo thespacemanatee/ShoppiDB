@@ -6,8 +6,13 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+var rdb *redis.Client
+
 func GetDBClient() *redis.Client {
-	rdb := redis.NewClient(&redis.Options{
+	if rdb != nil {
+		return rdb
+	}
+	rdb = redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB

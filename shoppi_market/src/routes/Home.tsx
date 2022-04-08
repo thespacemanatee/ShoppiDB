@@ -1,8 +1,8 @@
 import { Breadcrumb, Button } from "antd"
-import { useState } from "react"
+import { nanoid } from "nanoid"
+
 import { addItemToCart } from "../features/cart/cartSlice"
 import { useAppDispatch, useAppSelector } from "../features/cart/hooks"
-
 import { FoodItem, Item } from "../features/cart/types"
 import { putCart } from "../services/api"
 
@@ -10,26 +10,30 @@ import mockData from "../services/mockData"
 
 export default function VideoSurveillance() {
   const cart = useAppSelector((state) => state.cart)
-  const [foods, setFoods] = useState<FoodItem[]>(mockData)
 
   const dispatch = useAppDispatch()
 
   const handleAddToCart = async (item: FoodItem) => {
     try {
+      let key = cart.key
+      if (!key) {
+        key = nanoid()
+      }
       dispatch(addItemToCart(item))
       const temp: Item[] = [...cart.items, item].map((e) => ({
         id: e.id,
         name: e.name,
         price: e.price,
       }))
-      const res = await putCart(cart.key, temp)
-      console.log(res)
+      const res = await putCart(key, temp)
+      const newCart = res?.data
+      const items = JSON.parse(newCart?.value)
+      const context = newCart.context
+      console.log(newCart.key, items, context)
     } catch (err) {
       console.error(err)
     }
   }
-
-  console.log(foods)
 
   return (
     <div className="h-full min-h-screen">
@@ -37,7 +41,7 @@ export default function VideoSurveillance() {
         <Breadcrumb.Item>Marketplace</Breadcrumb.Item>
       </Breadcrumb>
       <div className="mt-4 grid grid-cols-4 gap-8">
-        {foods.map((food, idx) => (
+        {mockData.map((food, idx) => (
           <div key={food.id}>
             <img
               src={food.imageUrl}

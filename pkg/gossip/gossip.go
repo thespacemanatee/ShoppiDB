@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -112,9 +113,19 @@ func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err3 := client.Do(req)
 	checkErr(err3)
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			checkErr(err)
+			return
+		}
+	}(resp.Body)
 	var respMsg GossipMessage
-	json.NewDecoder(resp.Body).Decode(&respMsg)
+	err := json.NewDecoder(resp.Body).Decode(&respMsg)
+	if err != nil {
+		checkErr(err)
+		return
+	}
 	fmt.Println(GetLocalContainerName(), "received", respMsg.MyCommNodeMap, "from", respMsg.ContainerName, "with", respMsg.Update)
 	g.recvGossipMsg(respMsg)
 }
@@ -176,8 +187,8 @@ SERVER
 
 /**
 * Return updated GossipMessage after comparing with input GossipMessage
-* 
-* 
+*
+*
 *
 * @param msg The gossip message that is received and compared
 *
@@ -193,11 +204,11 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	senderUniqueNodeCounter := 0
 	var seedNodeTokenSetIsEmpty bool
 	seedNodesArr := getSeedNodes()
-	
+
 	for _, seed := range seedNodesArr {
 		if gossNode := msg.MyCommNodeMap[seed]; len(gossNode.TokenSet) == 0 {
 			seedNodeTokenSetIsEmpty = true
-		} 
+		}
 	}
 
 	for senderKey, senderValue := range msg.MyCommNodeMap {
@@ -213,14 +224,14 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 		}
 	}
 
-	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 || seedNodeTokenSetIsEmpty{
+	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 || seedNodeTokenSetIsEmpty {
 		fmt.Println(GetLocalContainerName(), "server has unique nodes!")
 		updateForSender = true
 		for myKey, myValue := range g.CommNodeMap {
 			if _, found := msg.MyCommNodeMap[myKey]; !found {
 				nodeMapForSender[myKey] = myValue
-			} 
-			for _, seedNodeID := range seedNodesArr{
+			}
+			for _, seedNodeID := range seedNodesArr {
 				if myKey == seedNodeID {
 					nodeMapForSender[seedNodeID] = myValue
 				}

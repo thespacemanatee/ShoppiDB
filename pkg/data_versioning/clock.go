@@ -1,39 +1,43 @@
 package data_versioning
 
 import (
+	"fmt"
 	"time"
 )
 
 type Clock struct {
-	Counter     int64
-	LastUpdated int64
+	Counter     int64 `json:"counter"`
+	LastUpdated int64 `json:"lastUpdated"`
 }
 
 type VectorClock map[string]Clock
 
 type DataObject struct {
-	Key     string
-	Value   string
-	Context VectorClock
+	Key     string      `json:"key"`
+	Value   string      `json:"value"`
+	Context VectorClock `json:"context"`
 }
 
-// NewDataObject returns a new DataObject.
-func NewDataObject(key string, rawData string) DataObject {
-	return DataObject{
-		Key:     key,
-		Value:   rawData,
-		Context: make(map[string]Clock),
+// NewVectorClock returns a new DataObject.
+func NewVectorClock(nodeId string) VectorClock {
+	return VectorClock{
+		nodeId: Clock{
+			Counter:     1,
+			LastUpdated: time.Now().UnixMilli(),
+		},
 	}
 }
 
 // UpdateVectorClock updates a node's clock in the object's vector clock, or generates one if this is a new object.
-func UpdateVectorClock(node string, vectorClock VectorClock) {
-	if clock, exists := vectorClock[node]; exists {
+func UpdateVectorClock(node string, vectorClock *VectorClock) {
+	if clock, exists := (*vectorClock)[node]; exists {
+		fmt.Println("EXISTS!")
 		clock.Counter += 1
 		clock.LastUpdated = time.Now().UnixMilli()
-		vectorClock[node] = clock
+		(*vectorClock)[node] = clock
 	} else {
-		vectorClock[node] = Clock{Counter: 1, LastUpdated: time.Now().UnixMilli()}
+		fmt.Println("DOES NOT EXIST!")
+		(*vectorClock)[node] = Clock{Counter: 1, LastUpdated: time.Now().UnixMilli()}
 	}
 }
 

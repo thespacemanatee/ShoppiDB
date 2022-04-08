@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 type GetRequest struct {
@@ -42,7 +43,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	fmt.Println("key: ", val)
+	fmt.Println("value: ", val)
 	w.WriteHeader(http.StatusAccepted)
 	err = json.NewEncoder(w).Encode(val)
 	if err != nil {
@@ -68,16 +69,21 @@ func PutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := context.Background()
 	rdb := redisDB.GetDBClient()
+	newObject := &versioning.DataObject{
+		Key:   *message.Key,
+		Value: *message.Value,
+	}
 	if message.Context == nil {
-		message.Context = &versioning.VectorClock{}
+		fmt.Println("MESSAGE NO CLOCK!")
+		clock := versioning.NewVectorClock(os.Getenv("NODE_ID"))
+		newObject.Context = clock
+	} else {
+		fmt.Println("MESSAGE GOT CLOCK!")
+		newObject.Context = *message.Context
+		versioning.UpdateVectorClock(os.Getenv("NODE_ID"), &newObject.Context)
 	}
 	fmt.Println("Writing to database")
-	object := versioning.DataObject{
-		Key:     *message.Key,
-		Value:   *message.Value,
-		Context: *message.Context,
-	}
-	marshal, err := json.Marshal(object)
+	marshal, err := json.Marshal(newObject)
 	if err != nil {
 		return
 	}
@@ -86,9 +92,9 @@ func PutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	fmt.Println(message)
+	fmt.Println(newObject)
 	w.WriteHeader(http.StatusAccepted)
-	err = json.NewEncoder(w).Encode(message)
+	err = json.NewEncoder(w).Encode(newObject)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return

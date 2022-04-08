@@ -217,3 +217,10 @@ func GenTokenSet() [][2]int {
 	}
 	return tokenSet
 }
+
+func checkErr(err error) {
+	if err != nil {
+		fmt.Println("ERROR")
+		fmt.Println(err)
+	}
+}
