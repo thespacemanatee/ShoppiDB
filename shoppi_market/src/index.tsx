@@ -1,18 +1,26 @@
 import React from "react"
 import { createRoot } from "react-dom/client"
+import { Provider } from "react-redux"
 import { BrowserRouter } from "react-router-dom"
+import { PersistGate } from "redux-persist/integration/react"
 import "./index.css"
 import App from "./App"
 import reportWebVitals from "./reportWebVitals"
+
+import { persistor, store } from "./features/cart/store"
 
 const container = document.getElementById("root")
 if (container) {
   const root = createRoot(container)
   root.render(
     <React.StrictMode>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <Provider store={store}>
+        <PersistGate loading={null} persistor={persistor}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </PersistGate>
+      </Provider>
     </React.StrictMode>
   )
 }

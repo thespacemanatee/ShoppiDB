@@ -15,15 +15,19 @@ import (
 	"github.com/k0kubun/pp/v3"
 )
 
-var node data_versioning.Node
 var localDataObject data_versioning.DataObject
 
 func main() {
-	gossipNode := gossip.GossipNode{ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership()}
+	tokenSet := nodePkg.GenTokenSet()
+	gossipNode := gossip.GossipNode{ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership(), TokenSet: tokenSet}
 	localCommNodeMap := make(map[string]gossip.GossipNode)
 	localCommNodeMap[gossip.GetLocalNodeID()] = gossipNode
 	httpClient := nodePkg.GetHTTPClient()
-	localNode := nodePkg.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient}}
+	localVirtualNodeMap := make(map[[2]int]gossip.GossipNode)
+	for _, rnge := range tokenSet {
+		localVirtualNodeMap[rnge] = gossipNode
+	}
+	localNode := nodePkg.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient, VirtualNodeMap: localVirtualNodeMap}}
 
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
 
@@ -53,7 +57,6 @@ func listenMessage(ln net.Listener) {
 
 //Example code for sending message through socket
 func sendMessage(id int) {
-	fmt.Printf("Node %s sending message\n", node)
 	target := "Tobechange"
 	time.Sleep(time.Millisecond * 5)
 	con, err := net.Dial("tcp", target)

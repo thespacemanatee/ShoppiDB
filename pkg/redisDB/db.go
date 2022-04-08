@@ -3,17 +3,16 @@ package redisDB
 import (
 	"context"
 	"fmt"
-
 	"github.com/go-redis/redis/v8"
 )
 
-type DatabaseMessage struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
+var rdb *redis.Client
 
 func GetDBClient() *redis.Client {
-	rdb := redis.NewClient(&redis.Options{
+	if rdb != nil {
+		return rdb
+	}
+	rdb = redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
