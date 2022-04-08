@@ -22,7 +22,6 @@ services:
       - ./loadBalancer/nginx.conf:/etc/nginx/conf.d/default.conf
     networks:
       - db
-
   node0: #DNS name
     build:
       context: ./

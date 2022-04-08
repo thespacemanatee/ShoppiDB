@@ -7,8 +7,6 @@ import (
 	"ShoppiDB/pkg/gossip"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	"html"
 	"log"
 	"math"
@@ -17,6 +15,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 )
 
 type Node struct {
@@ -136,6 +137,83 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
 }
 
+// func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
+// 	enableCors(&w)
+// 	fmt.Println("Request for GET function")
+// 	w.Header().Set("Content-Type", "application/json")
+// 	if r.Body == nil {
+// 		http.Error(w, "Please send a request body", 400)
+// 		return
+// 	}
+// 	var message redisDB.DatabaseMessage
+// 	err := json.NewDecoder(r.Body).Decode(&message)
+// 	if err != nil {
+// 		http.Error(w, err.Error(), 400)
+// 		return
+// 	}
+// 	ctx := context.Background()
+// 	rdb := redisDB.GetDBClient()
+// 	val, err := rdb.Get(ctx, message.Key).Result()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	fmt.Println("key: ", val)
+// 	w.WriteHeader(http.StatusAccepted)
+// 	json.NewEncoder(w).Encode(val)
+// }
+
+// func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
+// 	enableCors(&w)
+// 	fmt.Println("Request for PUT function")
+// 	w.Header().Set("Content-Type", "application/json")
+// 	if r.Body == nil {
+// 		http.Error(w, "Please send a request body", 400)
+// 		return
+// 	}
+// 	var message redisDB.DatabaseMessage
+// 	err := json.NewDecoder(r.Body).Decode(&message)
+// 	if err != nil {
+// 		http.Error(w, err.Error(), 400)
+// 		return
+// 	}
+// 	//After receiving put request, hash the key and check for which node to serve
+// 	keyHash, _ := conHashing.GetMD5Hash(message.Key).Int64()
+// 	for vNodeKey, gossipNode := range n.Gossiper.VirtualNodeMap {
+// 		if hashValueContains(vNodeKey[:], keyHash) { //Iterate to identify the respective physical node handling the hash value
+// 			if gossipNode.ContainerName == n.ContainerName { //If is this node handling the hash value, proceed to db
+// 				//**Here has to make a data version and also a data replication before offical write into db
+// 				ctx := context.Background()
+// 				rdb := redisDB.GetDBClient()
+// 				err = rdb.Set(ctx, message.Key, message.Value, 0).Err()
+// 				if err != nil {
+// 					panic(err)
+// 				}
+// 				fmt.Println(message)
+// 				w.WriteHeader(http.StatusAccepted)
+// 				json.NewEncoder(w).Encode(message)
+// 			} else { //Send the request to the respective node and await for reply
+// 				msgJson, err := json.Marshal(message)
+// 				checkErr(err)
+// 				req, err := http.NewRequest(http.MethodPost, "http://"+gossipNode.ContainerName+":8080/put", bytes.NewBuffer(msgJson))
+// 				checkErr(err)
+// 				httpClient := GetHTTPClient()
+// 				resp, err := httpClient.Do(req)
+// 				checkErr(err)
+// 				defer resp.Body.Close()
+// 				b, err := io.ReadAll(resp.Body)
+// 				checkErr(err)
+// 				pp.Println(string(b))
+// 				fmt.Println(resp.Body)
+// 				w.WriteHeader(http.StatusAccepted)
+// 				json.NewEncoder(w).Encode(resp.Body)
+// 			}
+// 		}
+// 	}
+// 	fmt.Println("MISSING HASH")
+// 	w.WriteHeader(http.StatusBadRequest)
+// 	json.NewEncoder(w).Encode("MISSING HASH")
+// }
+
 func (n *Node) StartHTTPServer() {
 	fmt.Println("Starting HTTP Server")
 	router := mux.NewRouter().StrictSlash(true)
@@ -172,6 +250,9 @@ func httpCheckErr(w http.ResponseWriter, err error) {
 	}
 }
 
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+}
 func getNodeTotal() int {
 	i, err := strconv.Atoi(os.Getenv("NODE_TOTAL"))
 	checkErr(err)
@@ -216,6 +297,15 @@ func GenTokenSet() [][2]int {
 		}
 	}
 	return tokenSet
+}
+
+func hashValueContains(s []int, e int64) bool {
+	for _, a := range s {
+		if a == int(e) {
+			return true
+		}
+	}
+	return false
 }
 
 func checkErr(err error) {
