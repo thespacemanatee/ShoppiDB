@@ -5,6 +5,7 @@ package gossip
 */
 
 import (
+	httpClient "ShoppiDB/pkg/httpClient"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -78,7 +79,9 @@ func (g *Gossip) Start() {
 				seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
 				seedNode := seedNodesMap[seedID]
 				target := CONN_TYPE + seedNode.ContainerName + CONN_PORT + HTTP_ROUTE
-				g.clientSendMsgWithHTTP(g.HttpClient, target)
+				httpClient := httpClient.GetHTTPClient()
+				fmt.Println("Created new HTTP Client")
+				g.clientSendMsgWithHTTP(httpClient, target)
 			case <-timer.C:
 				ticker.Stop()
 				fmt.Println("")
@@ -97,24 +100,30 @@ func (g *Gossip) Start() {
 	for range ticker2.C {
 		randNode := g.getRandNode()
 		target := CONN_TYPE + randNode.ContainerName + CONN_PORT + HTTP_ROUTE
-		g.clientSendMsgWithHTTP(g.HttpClient, target)
+		httpClient := httpClient.GetHTTPClient()
+		fmt.Println("Created new HTTP Client")
+		go g.clientSendMsgWithHTTP(httpClient, target)
 	}
 }
 
 // Helper functions for gossip.Start
 
 func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Panic Occur, process recovered", r)
+		}
+	}()
+	g.mu.Lock()
 	msg := GossipMessage{ContainerName: GetLocalContainerName(), MyCommNodeMap: g.CommNodeMap}
+	g.mu.Unlock()
 	msgJson, err1 := json.Marshal(msg)
 	checkErr(err1)
 	req, err2 := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(msgJson))
 	checkErr(err2)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err3 := client.Do(req)
-	if err3 != nil {
-		fmt.Println("HTTP call failed:", err3)
-		return
-	}
+	checkErr(err3)
 	defer resp.Body.Close()
 	var respMsg GossipMessage
 	json.NewDecoder(resp.Body).Decode(&respMsg)
@@ -179,8 +188,8 @@ SERVER
 
 /**
 * Return updated GossipMessage after comparing with input GossipMessage
-* 
-* 
+*
+*
 *
 * @param msg The gossip message that is received and compared
 *
@@ -196,11 +205,11 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	senderUniqueNodeCounter := 0
 	var seedNodeTokenSetIsEmpty bool
 	seedNodesArr := getSeedNodes()
-	
+
 	for _, seed := range seedNodesArr {
 		if gossNode := msg.MyCommNodeMap[seed]; len(gossNode.TokenSet) == 0 {
 			seedNodeTokenSetIsEmpty = true
-		} 
+		}
 	}
 
 	for senderKey, senderValue := range msg.MyCommNodeMap {
@@ -216,14 +225,14 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 		}
 	}
 
-	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 || seedNodeTokenSetIsEmpty{
+	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 || seedNodeTokenSetIsEmpty {
 		fmt.Println(GetLocalContainerName(), "server has unique nodes!")
 		updateForSender = true
 		for myKey, myValue := range g.CommNodeMap {
 			if _, found := msg.MyCommNodeMap[myKey]; !found {
 				nodeMapForSender[myKey] = myValue
-			} 
-			for _, seedNodeID := range seedNodesArr{
+			}
+			for _, seedNodeID := range seedNodesArr {
 				if myKey == seedNodeID {
 					nodeMapForSender[seedNodeID] = myValue
 				}
