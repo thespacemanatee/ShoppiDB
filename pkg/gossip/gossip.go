@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -124,9 +125,19 @@ func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err3 := client.Do(req)
 	checkErr(err3)
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			checkErr(err)
+			return
+		}
+	}(resp.Body)
 	var respMsg GossipMessage
-	json.NewDecoder(resp.Body).Decode(&respMsg)
+	err := json.NewDecoder(resp.Body).Decode(&respMsg)
+	if err != nil {
+		checkErr(err)
+		return
+	}
 	fmt.Println(GetLocalContainerName(), "received", respMsg.MyCommNodeMap, "from", respMsg.ContainerName, "with", respMsg.Update)
 	g.recvGossipMsg(respMsg)
 }

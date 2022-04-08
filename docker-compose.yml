@@ -22,31 +22,31 @@ services:
       - ./loadBalancer/nginx.conf:/etc/nginx/conf.d/default.conf
     networks:
       - db
-  node0: #DNS name 
-      build:
-        context: ./
-        dockerfile: DockerFile_RedisNodeDev
-      container_name: node0
-      environment:
-        - NODE_TOTAL=10
-        - NODE_ID=0
-        - RACE_DETECTOR=1
-        - BUILD_ARGS=./src
-        - SEEDNODES=0 1
-        - MEMBERSHIP=yes
-      volumes:
-        - .:/app
-        - devnode0:/redis/volume
-      networks:
-        - db
-  node1: #DNS name 
+  node0: #DNS name
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node0
+    environment:
+      - NODE_TOTAL=10
+      - NODE_ID=0
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src
+      - SEEDNODES=0 1
+      - MEMBERSHIP=yes
+    volumes:
+      - .:/app
+      - devnode0:/redis/volume
+    networks:
+      - db
+  node1: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node1
     restart: always
     environment:
-      - NODE_TOTAL=10 
+      - NODE_TOTAL=10
       - NODE_ID=1
       - RACE_DETECTOR=1
       - BUILD_ARGS=./src
@@ -75,24 +75,24 @@ services:
       - devnode2:/redis/volume
     networks:
       - db
-  node3: #DNS name 
-      build:
-        context: ./
-        dockerfile: DockerFile_RedisNodeDev
-      container_name: node3
-      environment:
-        - NODE_TOTAL=10
-        - NODE_ID=3
-        - RACE_DETECTOR=1
-        - BUILD_ARGS=./src
-        - SEEDNODES=0 1
-        - MEMBERSHIP=yes
-      volumes:
-        - .:/app
-        - devnode3:/redis/volume
-      networks:
-        - db
-  node4: #DNS name 
+  node3: #DNS name
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node3
+    environment:
+      - NODE_TOTAL=10
+      - NODE_ID=3
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src
+      - SEEDNODES=0 1
+      - MEMBERSHIP=yes
+    volumes:
+      - .:/app
+      - devnode3:/redis/volume
+    networks:
+      - db
+  node4: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
@@ -128,24 +128,24 @@ services:
       - devnode5:/redis/volume
     networks:
       - db
-  node6: #DNS name 
-      build:
-        context: ./
-        dockerfile: DockerFile_RedisNodeDev
-      container_name: node6
-      environment:
-        - NODE_TOTAL=10
-        - NODE_ID=6
-        - RACE_DETECTOR=1
-        - BUILD_ARGS=./src
-        - SEEDNODES=0 1
-        - MEMBERSHIP=yes
-      volumes:
-        - .:/app
-        - devnode6:/redis/volume
-      networks:
-        - db
-  node7: #DNS name 
+  node6: #DNS name
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node6
+    environment:
+      - NODE_TOTAL=10
+      - NODE_ID=6
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src
+      - SEEDNODES=0 1
+      - MEMBERSHIP=yes
+    volumes:
+      - .:/app
+      - devnode6:/redis/volume
+    networks:
+      - db
+  node7: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
@@ -181,23 +181,23 @@ services:
       - devnode8:/redis/volume
     networks:
       - db
-  node9: #DNS name 
-      build:
-        context: ./
-        dockerfile: DockerFile_RedisNodeDev
-      container_name: node9
-      environment:
-        - NODE_TOTAL=10
-        - NODE_ID=9
-        - RACE_DETECTOR=1
-        - BUILD_ARGS=./src
-        - SEEDNODES=0 1
-        - MEMBERSHIP=yes
-      volumes:
-        - .:/app
-        - devnode9:/redis/volume
-      networks:
-        - db
+  node9: #DNS name
+    build:
+      context: ./
+      dockerfile: DockerFile_RedisNodeDev
+    container_name: node9
+    environment:
+      - NODE_TOTAL=10
+      - NODE_ID=9
+      - RACE_DETECTOR=1
+      - BUILD_ARGS=./src
+      - SEEDNODES=0 1
+      - MEMBERSHIP=yes
+    volumes:
+      - .:/app
+      - devnode9:/redis/volume
+    networks:
+      - db
 
 volumes:
   devnode0:
