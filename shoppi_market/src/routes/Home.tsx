@@ -1,4 +1,4 @@
-import { Breadcrumb, Button } from "antd"
+import { Button } from "antd"
 import { nanoid } from "nanoid"
 
 import { addItemToCart, setCart } from "../features/cart/cartSlice"
@@ -8,7 +8,7 @@ import { putCart } from "../services/api"
 
 import mockData from "../services/mockData"
 
-export default function VideoSurveillance() {
+export default function Home() {
   const cart = useAppSelector((state) => state.cart)
 
   const dispatch = useAppDispatch()
@@ -51,9 +51,6 @@ export default function VideoSurveillance() {
 
   return (
     <div className="h-full min-h-screen">
-      <Breadcrumb>
-        <Breadcrumb.Item>Marketplace</Breadcrumb.Item>
-      </Breadcrumb>
       <div className="mt-4 grid grid-cols-4 gap-8">
         {mockData.map((food, idx) => (
           <div key={food.id}>
