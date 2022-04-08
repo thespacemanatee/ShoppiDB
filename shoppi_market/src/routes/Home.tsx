@@ -1,9 +1,9 @@
 import { Breadcrumb, Button } from "antd"
 import { nanoid } from "nanoid"
 
-import { addItemToCart } from "../features/cart/cartSlice"
+import { addItemToCart, setCart } from "../features/cart/cartSlice"
 import { useAppDispatch, useAppSelector } from "../features/cart/hooks"
-import { FoodItem, Item } from "../features/cart/types"
+import { FoodItem } from "../features/cart/types"
 import { putCart } from "../services/api"
 
 import mockData from "../services/mockData"
@@ -20,16 +20,30 @@ export default function VideoSurveillance() {
         key = nanoid()
       }
       dispatch(addItemToCart(item))
-      const temp: Item[] = [...cart.items, item].map((e) => ({
-        id: e.id,
-        name: e.name,
-        price: e.price,
-      }))
-      const res = await putCart(key, temp)
+      const temp = [...cart.items].map((e) => ({ ...e }))
+      const updatedItem = temp.find((e) => e.id === item.id)
+      if (updatedItem) {
+        updatedItem.quantity += 1
+      } else {
+        temp.push({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: 1,
+        })
+      }
+      const res = await putCart(key, temp, cart.context)
       const newCart = res?.data
       const items = JSON.parse(newCart?.value)
       const context = newCart.context
       console.log(newCart.key, items, context)
+      dispatch(
+        setCart({
+          key: newCart.key,
+          items,
+          context,
+        })
+      )
     } catch (err) {
       console.error(err)
     }

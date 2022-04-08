@@ -9,7 +9,7 @@ export type Item = {
   id: string
   name: string
   price: number
-  // quantity: number
+  quantity: number
 }
 
 export type ShoppingCart = Item[]
