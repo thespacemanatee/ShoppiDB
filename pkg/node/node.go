@@ -3,11 +3,15 @@ package node
 import (
 	"ShoppiDB/pkg/byzantine"
 	replication "ShoppiDB/pkg/data_replication"
+	gossip "ShoppiDB/pkg/gossip"
 	"encoding/json"
 	"fmt"
 	"html"
 	"io"
 	"log"
+	"math"
+	"math/big"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,14 +22,37 @@ import (
 )
 
 type Node struct {
-	nonce      []string
-	Replicator *replication.Replicator
+	nonce         []string
+	ContainerName string
+	TokenSet      [][2]int
+	Membership    bool
+	Replicator    *replication.Replicator
+	Gossiper      gossip.Gossip
+
+	// IsSeed            bool
+	// NodeRingPositions []int
+	// Ring              *conHashing.Ring
 }
 
 func (n *Node) updateNonce(nonce string) {
 	n.nonce = append(n.nonce, nonce)
 	fmt.Println("Appended Nonce")
 	fmt.Println(n.nonce)
+}
+
+func (n *Node) gossipHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var msg gossip.GossipMessage
+	err := json.NewDecoder(r.Body).Decode(&msg)
+	httpCheckErr(w, err)
+	response := n.Gossiper.CompareAndUpdate(msg)
+
+	json.NewEncoder(w).Encode(response) //Writing the message back
+
 }
 
 func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
@@ -46,62 +73,59 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 	switch msg.MessageCode {
 	case 0:
 		{
-			// failed write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed write")
+			// coordinator node want to write on current node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " prep recv")
+			go n.Replicator.HandleWriteResponse(msg)
 		}
 	case 1:
 		{
 			// successful response from node write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful response from node write")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " ack prep recv")
 			n.Replicator.AddSuccessfulWrite(msg.SenderId)
 		}
 	case 2:
 		{
-			// response
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " replication response")
-			go n.Replicator.HandleWriteResponse(msg)
+			// committing data
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " commit write data")
+			go n.Replicator.HandleCommit(msg)
 		}
 	case 3:
 		{
-			// hinted handoff
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " handoff data")
-			go n.Replicator.HandleHandoff(msg)
+			// prep recv hinted handoff
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " prep recv handoff data")
+			go n.Replicator.HandleHandoffResponse(msg)
 		}
 	case 4:
 		{
-			// failed read
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed read")
+			// ack for recv hinted handoff
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " ack prep recv handoff data")
+			n.Replicator.AddSuccessfulHandoff(msg.SenderId)
 		}
 	case 5:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read")
-			n.Replicator.AddSuccessfulRead(msg)
+			// committing to handoff node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " commit write data to handoff")
+			go n.Replicator.HandleHandoffCommit(msg)
 		}
 	case 6:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " key data")
-			go n.Replicator.HandleReadResponse(msg)
+			// handoff node to intended node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " data from handoff node to intended")
+			go n.Replicator.HandleHandoffToIntended(msg)
 		}
 	case 7:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " committing data")
-			go n.Replicator.HandleCommit(msg)
+			// coordinator node want to read on current node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " read key data")
+			go n.Replicator.HandleReadResponse(msg)
+			
 		}
 	case 8:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful commit data")
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read data")
+			go n.Replicator.AddSuccessfulRead(msg)
 		}
-	case 9:
-		{
-			// successful response from handoff node
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful write")
-			n.Replicator.AddSuccessfulHandoff(msg.SenderId)
-		}
-	case 10:
-		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful handoff commit")
-			go n.Replicator.HandleHandoffCommit(msg)
-		}
+
 	default:
 		{
 			fmt.Println("Wrong message code used")
@@ -138,13 +162,14 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/", defaultHandler).Methods("GET")
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
+	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
 /*
 	Clients and Transports are safe for concurrent use by multiple goroutines and for efficiency should only be created once and re-used.
 */
-func GetHTTPClient() *http.Client {
+func GetHTTPClient(timeout time.Duration) *http.Client {
 	tr := &http.Transport{
 		MaxIdleConns:       100,
 		IdleConnTimeout:    30 * time.Second,
@@ -152,7 +177,7 @@ func GetHTTPClient() *http.Client {
 		DisableCompression: true,
 	}
 	client := &http.Client{
-		Timeout:   300 * time.Millisecond,
+		Timeout:   timeout,
 		Transport: tr,
 	}
 	return client
@@ -176,4 +201,103 @@ func checkErr(err error) {
 		fmt.Println("ERROR")
 		fmt.Println(err)
 	}
+}
+
+func httpCheckErr(w http.ResponseWriter, err error) {
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+}
+
+func getNodeTotal() int {
+	i, err := strconv.Atoi(os.Getenv("NODE_TOTAL"))
+	checkErr(err)
+	return i
+}
+
+/**
+* Returns a nested array consisting of the assigned token set
+* Eg. [[1,2], [4,5],[24,25]]
+*
+*
+* @return a nested array consisting of the assigned token set
+ */
+
+func GenTokenSet() [][2]int {
+	var tokenSet [][2]int
+	numNodes := getNodeTotal()
+	numTokens := math.Floor(64 / float64(numNodes))
+	for i := 0; i < int(numTokens); i++ {
+		rand.Seed(time.Now().UnixNano())
+		min := 0
+		max := 63
+		randInt := rand.Intn(max-min) + min
+		// check if the token is alr assigned
+		dup := false
+		for {
+			for _, t := range tokenSet {
+				if randInt == t[0] {
+					dup = true
+					randInt = rand.Intn(max-min) + min
+				}
+			}
+			if dup != true {
+				break
+			}
+		}
+
+		if randInt < 63 {
+			tokenSet = append(tokenSet, [2]int{randInt, randInt + 1})
+		} else {
+			tokenSet = append(tokenSet, [2]int{randInt, 0})
+		}
+	}
+	return tokenSet
+}
+
+// returns preference list
+// function needs to be changed since currently i fix hash to 25
+func (n *Node) GetPreferenceList(hashKey big.Float) map[int]int {
+	fmt.Println("in getpreferencelist")
+	// fmt.Print("CommNodeMap")
+	// fmt.Println(n.Gossiper.CommNodeMap)
+	// fmt.Print("VirtualNodemap")
+	// fmt.Println(n.Gossiper.VirtualNodeMap)
+	hashKeyInt64, _ := hashKey.Int64()
+
+	nodeMap := n.Gossiper.CommNodeMap // to check if it is a phy node
+	startingHashRange := [2]int{int(hashKeyInt64), int(hashKeyInt64) + 1}
+	fmt.Print("this is starting hash range")
+	fmt.Println(startingHashRange)
+	fmt.Print("this is length of nodeMap" + strconv.Itoa(len(nodeMap)))
+	preferenceList := make(map[int]int)
+	vnMap := n.Gossiper.VirtualNodeMap // get node based on hash val
+	fmt.Println("this is the length of virtualnodemap " + strconv.Itoa(len(vnMap)))
+
+	// iterates through the hash range to find next physical node
+	for i := 1; i < len(nodeMap); {
+		nextHashRange := [2]int{startingHashRange[1], startingHashRange[1] + 1}
+		fmt.Println("check this")
+		fmt.Println(vnMap[nextHashRange].ContainerName)
+		fmt.Println(len(vnMap[nextHashRange].ContainerName))
+		if len(vnMap[nextHashRange].ContainerName) != 0 {
+			if preferenceList[vnMap[nextHashRange].Id] == 0 {
+				// i gives the value of its position eg. 1 is first in prefList, 2 is 2nd
+				preferenceList[vnMap[nextHashRange].Id] = i
+				i++
+			}
+		}
+		startingHashRange = nextHashRange
+	}
+
+	return preferenceList
+}
+
+func getHashRange(hashVal int64, totalNumNodes int) [2]int {
+	fmt.Print("this is the hashKey")
+	fmt.Println(hashVal)
+	firstVal := int(hashVal * int64(totalNumNodes))
+	secondVal := firstVal + 1
+	return [2]int{firstVal, secondVal}
 }

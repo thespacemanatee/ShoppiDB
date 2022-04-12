@@ -1,12 +1,12 @@
 package main
 
 import (
+	consistent_hashing "ShoppiDB/pkg/consistent_hashing"
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
+	gossip "ShoppiDB/pkg/gossip"
 	nodePkg "ShoppiDB/pkg/node"
 	"ShoppiDB/pkg/redisDB"
-	"context"
-	gossip "ShoppiDB/src/gossipProtocol"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -22,35 +22,42 @@ var node data_versioning.Node
 var localDataObject data_versioning.DataObject
 
 func main() {
-	// done := make(chan struct{})
-	localNode := gossip.Node{Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName()}
-	toCommunicate := gossip.Gossip{NodeMap: make(map[string]gossip.Node)}
-
-	//adding localNode into node map
-	toCommunicate.NodeMap[gossip.GetLocalNodeID()] = localNode
-
-	go toCommunicate.ServerStart()
-	go toCommunicate.ClientStart()
-	time.Sleep(time.Minute * 5)
-
 	id := os.Getenv("NODE_ID")
-	nodeStructure := [4]int{1, 2, 3, 4}
-	httpClient := nodePkg.GetHTTPClient()
-	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, NodeStructure: nodeStructure, HttpClient: httpClient, Rdb: *redisDB.GetDBClient()}
-	node := nodePkg.Node{Replicator: &replicator}
-	go node.StartHTTPServer()
-	if id == "1" {
-		go node.Replicator.ReplicateWrites(redisDB.DatabaseMessage{Key: "hello world", Value: "byebye"})
-	}
-	for {
-		time.Sleep(time.Second * 10)
-		ctx := context.Background()
-
-		rdb := node.Replicator.Rdb
-		oldValue, err := rdb.Get(ctx, "hello world").Result()
-		fmt.Println("this is running in main " + oldValue)
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
 		fmt.Println(err)
 	}
+	tokenSet := nodePkg.GenTokenSet()
+	gossipNode := gossip.GossipNode{Id: idInt, ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership(), TokenSet: tokenSet}
+	localCommNodeMap := make(map[string]gossip.GossipNode)
+	localCommNodeMap[gossip.GetLocalNodeID()] = gossipNode
+	httpClient := nodePkg.GetHTTPClient(300 * time.Millisecond)
+	longerTOClient := nodePkg.GetHTTPClient(1 * time.Second)
+	localVirtualNodeMap := make(map[[2]int]gossip.GossipNode)
+	for _, rnge := range tokenSet {
+		localVirtualNodeMap[rnge] = gossipNode
+	}
+	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, HttpClient: httpClient, LongerTOClient: longerTOClient, Rdb: *redisDB.GetDBClient()}
+	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient, VirtualNodeMap: localVirtualNodeMap}}
+
+	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
+	key := "hello world"
+	hashKey := consistent_hashing.GetMD5Hash(key)
+	go localNode.StartHTTPServer()
+	time.Sleep(time.Second * 10)
+	go localNode.Gossiper.Start()
+	time.Sleep(time.Second * 20)
+	fmt.Println(hashKey)
+	for {
+		if id == "1" {
+			nodeStructure := localNode.GetPreferenceList(*hashKey)
+			go localNode.Replicator.ReplicateWrites(nodeStructure, redisDB.DatabaseMessage{Key: key, Value: "byebye"})
+			time.Sleep(time.Second * 10)
+			for {
+			}
+		}
+	}
+
 	// var oppId int
 	// switch id {
 	// case "1":
