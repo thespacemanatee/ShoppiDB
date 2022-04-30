@@ -7,6 +7,7 @@ import (
 	gossip "ShoppiDB/pkg/gossip"
 	nodePkg "ShoppiDB/pkg/node"
 	"ShoppiDB/pkg/redisDB"
+	"container/heap"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -37,7 +38,9 @@ func main() {
 	for _, rnge := range tokenSet {
 		localVirtualNodeMap[rnge] = gossipNode
 	}
-	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, HttpClient: httpClient, LongerTOClient: longerTOClient, Rdb: *redisDB.GetDBClient()}
+	priorityQueue := make(replication.PriorityQueue, 0)
+	heap.Init(&priorityQueue)
+	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, HttpClient: httpClient, LongerTOClient: longerTOClient, Rdb: *redisDB.GetDBClient(), Queue: priorityQueue}
 	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient, VirtualNodeMap: localVirtualNodeMap}}
 
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
@@ -51,7 +54,9 @@ func main() {
 	for {
 		if id == "1" {
 			nodeStructure := localNode.GetPreferenceList(*hashKey)
-			go localNode.Replicator.ReplicateWrites(nodeStructure, redisDB.DatabaseMessage{Key: key, Value: "byebye"})
+			go localNode.Replicator.AddRequest(nodeStructure, redisDB.DatabaseMessage{Key: key, Value: "value"}, true)
+			nodeStructure = localNode.GetPreferenceList(*hashKey)
+			go localNode.Replicator.AddRequest(nodeStructure, redisDB.DatabaseMessage{Key: key, Value: "value1"}, true)
 			time.Sleep(time.Second * 10)
 			for {
 			}

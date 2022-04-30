@@ -20,6 +20,7 @@ type Replicator struct {
 	N              int
 	R              int
 	W              int
+	Queue          PriorityQueue
 	NodeStructure  map[int]int
 	WriteCheck     map[int]bool
 	HandoffCheck   map[int]bool
@@ -47,9 +48,47 @@ type ReplicationMessage struct {
 	// 8 - read response
 }
 
-// starts write replication processs
-func (r *Replicator) ReplicateWrites(nodeStructure map[int]int, data redisDB.DatabaseMessage) bool {
+type ClientReq struct {
+	Timestamp       time.Time
+	IsWriteReq      bool
+	DatabaseMessage redisDB.DatabaseMessage
+}
+
+func (r *Replicator) AddRequest(nodeStructure map[int]int, data redisDB.DatabaseMessage, isWrite bool) {
+	r.mu.Lock()
 	r.NodeStructure = nodeStructure
+	req := ClientReq{Timestamp: time.Now(), IsWriteReq: isWrite, DatabaseMessage: data}
+	head := r.Queue.Front()
+	if head.Timestamp.Equal(time.Time{}) {
+		//queue is empty
+		r.Queue.Push(&Item{req: req})
+		if req.IsWriteReq {
+			defer r.ReplicateWrites(req)
+		} else {
+			defer r.ReplicateReads(req)
+		}
+	} else {
+		r.Queue.Push(&Item{req: req})
+	}
+	r.mu.Unlock()
+}
+
+func (r *Replicator) HandleNextInQueue() {
+	r.mu.Lock()
+	head := r.Queue.Front()
+	if !head.Timestamp.Equal(time.Time{}) {
+		//queue is empty
+		if head.IsWriteReq {
+			go r.ReplicateWrites(head)
+		} else {
+			go r.ReplicateReads(head)
+		}
+	}
+	r.mu.Unlock()
+}
+
+// starts write replication processs
+func (r *Replicator) ReplicateWrites(req ClientReq) {
 	fmt.Println("Node: " + (r.Id) + " begining replication")
 	id, err := strconv.Atoi(r.Id)
 	if err != nil {
@@ -62,7 +101,7 @@ func (r *Replicator) ReplicateWrites(nodeStructure map[int]int, data redisDB.Dat
 	targets := r.getNodes(r.N-1, 1)
 	// contact N-1 nodes in preferenceList
 	for _, target := range targets {
-		msg := ReplicationMessage{SenderId: id, Dest: target, DatabaseMessage: data, MessageCode: 0}
+		msg := ReplicationMessage{SenderId: id, Dest: target, DatabaseMessage: req.DatabaseMessage, MessageCode: 0}
 		res, t := r.SendReplicationMessage(r.HttpClient, msg)
 		if res == 1 {
 			fmt.Println("Message to " + strconv.Itoa(t) + " failed")
@@ -81,7 +120,7 @@ func (r *Replicator) ReplicateWrites(nodeStructure map[int]int, data redisDB.Dat
 			newTargets := r.getNodes(failedConnections, startingPt)
 			for _, target := range newTargets {
 				// sending handoff mesages
-				handoffMsg := ReplicationMessage{SenderId: id, Dest: target, IntendedRecipientId: failedTargets[count], DatabaseMessage: data, MessageCode: 3}
+				handoffMsg := ReplicationMessage{SenderId: id, Dest: target, IntendedRecipientId: failedTargets[count], DatabaseMessage: req.DatabaseMessage, MessageCode: 3}
 				res, _ := r.SendReplicationMessage(r.HttpClient, handoffMsg)
 				if res == 0 {
 					count++
@@ -108,7 +147,7 @@ func (r *Replicator) ReplicateWrites(nodeStructure map[int]int, data redisDB.Dat
 		for targetId, res := range r.WriteCheck {
 			if res {
 				// sends values to these nodes
-				msg := ReplicationMessage{SenderId: id, Dest: targetId, DatabaseMessage: data, MessageCode: 2}
+				msg := ReplicationMessage{SenderId: id, Dest: targetId, DatabaseMessage: req.DatabaseMessage, MessageCode: 2}
 				res, t := r.SendReplicationMessage(r.LongerTOClient, msg)
 				// failed to send over data
 				if res == 1 {
@@ -121,7 +160,7 @@ func (r *Replicator) ReplicateWrites(nodeStructure map[int]int, data redisDB.Dat
 		count := 0
 		for targetId, toSend := range r.HandoffCheck {
 			if toSend {
-				msg := ReplicationMessage{SenderId: id, Dest: targetId, IntendedRecipientId: failedTargets[count], DatabaseMessage: data, MessageCode: 5}
+				msg := ReplicationMessage{SenderId: id, Dest: targetId, IntendedRecipientId: failedTargets[count], DatabaseMessage: req.DatabaseMessage, MessageCode: 5}
 				res, t := r.SendReplicationMessage(r.LongerTOClient, msg)
 				if res == 1 {
 					fmt.Println("Message to " + strconv.Itoa(t) + " failed to connect")
@@ -132,11 +171,14 @@ func (r *Replicator) ReplicateWrites(nodeStructure map[int]int, data redisDB.Dat
 		}
 	}
 	fmt.Println("Write quorum results is :" + strconv.FormatBool(quorumRes))
-	return quorumRes
+	r.mu.Lock()
+	r.Queue.Pop()
+	r.mu.Unlock()
+	r.HandleNextInQueue()
 }
 
 // starts read replication processs
-func (r *Replicator) ReplicateReads(key redisDB.DatabaseMessage) (bool, string) {
+func (r *Replicator) ReplicateReads(req ClientReq) (bool, string) {
 	fmt.Println("Node: " + (r.Id) + " begining replication")
 	id, err := strconv.Atoi(r.Id)
 	if err != nil {
@@ -146,7 +188,7 @@ func (r *Replicator) ReplicateReads(key redisDB.DatabaseMessage) (bool, string) 
 	targets := r.getNodes(r.N-1, 1)
 	// checks N-1 nodes in preference list
 	for _, target := range targets {
-		msg := ReplicationMessage{SenderId: id, Dest: target, DatabaseMessage: key, MessageCode: 7}
+		msg := ReplicationMessage{SenderId: id, Dest: target, DatabaseMessage: req.DatabaseMessage, MessageCode: 7}
 		res, t := r.SendReplicationMessage(r.HttpClient, msg)
 		if res == 1 {
 			fmt.Println("Message to " + strconv.Itoa(t) + " failed")
@@ -157,6 +199,10 @@ func (r *Replicator) ReplicateReads(key redisDB.DatabaseMessage) (bool, string) 
 	fmt.Println("Results for read replication")
 	res, val := r.checkReadQuorum()
 	fmt.Println(res)
+	r.mu.Lock()
+	r.Queue.Pop()
+	r.mu.Unlock()
+	r.HandleNextInQueue()
 	return res, val
 }
 func (r *Replicator) SendReplicationMessage(httpClient *http.Client, msg ReplicationMessage) (failedConn int, failedTarget int) {
