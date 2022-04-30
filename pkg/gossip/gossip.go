@@ -33,6 +33,7 @@ type GossipMessage struct {
 }
 
 type GossipNode struct {
+	Id            int
 	ContainerName string
 	TokenSet      [][2]int
 	Membership    bool
@@ -260,6 +261,15 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 }
 
 //  General helper functions
+
+func (g *GossipNode) GetId() int {
+	id, err := strconv.Atoi(os.Getenv("NODE_ID"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	return id
+}
+
 func GetLocalContainerName() string {
 	var output string
 	switch os.Getenv("NODE_ID") {

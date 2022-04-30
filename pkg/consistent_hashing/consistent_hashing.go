@@ -1,17 +1,35 @@
-package conHashing
+package consistent_hashing
 
 import (
 	"crypto/md5"
 	"encoding/hex"
 	"math/big"
+	"sync"
 )
 var hashRange = new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil)
 
+// struct to prevent duplicate
+type VirtualPositions struct {
+	mu sync.Mutex
+	AssignedRange []int
+}
+
+func (v *VirtualPositions) GetVirtualPositions() []int {
+	v.mu.Lock()
+    defer v.mu.Unlock()
+	return v.AssignedRange
+}
+
+func (v *VirtualPositions) UpdateVirtualPositions(input int) {
+	v.mu.Lock()
+	v.AssignedRange = append(v.AssignedRange, input)
+	v.mu.Unlock()
+}
 
 /**
 * Returns the position indicated by the hash
 * Eg. return value = 0.8
-* position = 0.8 * Total num of vNodes in ring
+* position = 0.8 * 64
 * 
 * @param text The text to hash
 * 

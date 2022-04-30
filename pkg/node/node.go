@@ -10,6 +10,7 @@ import (
 	"html"
 	"log"
 	"math"
+	"math/big"
 	"math/rand"
 	"net/http"
 	"os"
@@ -71,42 +72,59 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 	switch msg.MessageCode {
 	case 0:
 		{
-			// failed write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed write")
+			// coordinator node want to write on current node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " prep recv")
+			go n.Replicator.HandleWriteResponse(msg)
 		}
 	case 1:
 		{
-			// success write
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful write")
+			// successful response from node write
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " ack prep recv")
 			n.Replicator.AddSuccessfulWrite(msg.SenderId)
 		}
 	case 2:
 		{
-			// response
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " replication response")
-			go n.Replicator.HandleWriteResponse(msg)
+			// committing data
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " commit write data")
+			go n.Replicator.HandleCommit(msg)
 		}
 	case 3:
 		{
-			// hinted handoff
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " handoff data")
-			go n.Replicator.HandleHandoff(msg)
+			// prep recv hinted handoff
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " prep recv handoff data")
+			go n.Replicator.HandleHandoffResponse(msg)
 		}
 	case 4:
 		{
-			// failed read
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " failed read")
+			// ack for recv hinted handoff
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " ack prep recv handoff data")
+			n.Replicator.AddSuccessfulHandoff(msg.SenderId)
 		}
 	case 5:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read")
-			n.Replicator.AddSuccessfulRead(msg.SenderId)
+			// committing to handoff node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " commit write data to handoff")
+			go n.Replicator.HandleHandoffCommit(msg)
 		}
 	case 6:
 		{
-			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " key data")
-			go n.Replicator.HandleReadResponse(msg)
+			// handoff node to intended node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " data from handoff node to intended")
+			go n.Replicator.HandleHandoffToIntended(msg)
 		}
+	case 7:
+		{
+			// coordinator node want to read on current node
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " read key data")
+			go n.Replicator.HandleReadResponse(msg)
+			
+		}
+	case 8:
+		{
+			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " successful read data")
+			go n.Replicator.AddSuccessfulRead(msg)
+		}
+
 	default:
 		{
 			fmt.Println("Wrong message code used")
@@ -229,7 +247,7 @@ func (n *Node) StartHTTPServer() {
 /*
 	Clients and Transports are safe for concurrent use by multiple goroutines and for efficiency should only be created once and re-used.
 */
-func GetHTTPClient() *http.Client {
+func GetHTTPClient(timeout time.Duration) *http.Client {
 	tr := &http.Transport{
 		MaxIdleConns:       100,
 		IdleConnTimeout:    30 * time.Second,
@@ -237,7 +255,7 @@ func GetHTTPClient() *http.Client {
 		DisableCompression: true,
 	}
 	client := &http.Client{
-		Timeout:   300 * time.Millisecond,
+		Timeout:   timeout,
 		Transport: tr,
 	}
 	return client
@@ -298,6 +316,51 @@ func GenTokenSet() [][2]int {
 	}
 	return tokenSet
 }
+
+// returns preference list
+// function needs to be changed since currently i fix hash to 25
+func (n *Node) GetPreferenceList(hashKey big.Float) map[int]int {
+	fmt.Println("in getpreferencelist")
+	// fmt.Print("CommNodeMap")
+	// fmt.Println(n.Gossiper.CommNodeMap)
+	// fmt.Print("VirtualNodemap")
+	// fmt.Println(n.Gossiper.VirtualNodeMap)
+	hashKeyInt64, _ := hashKey.Int64()
+
+	nodeMap := n.Gossiper.CommNodeMap // to check if it is a phy node
+	startingHashRange := [2]int{int(hashKeyInt64), int(hashKeyInt64) + 1}
+	fmt.Print("this is starting hash range")
+	fmt.Println(startingHashRange)
+	fmt.Print("this is length of nodeMap" + strconv.Itoa(len(nodeMap)))
+	preferenceList := make(map[int]int)
+	vnMap := n.Gossiper.VirtualNodeMap // get node based on hash val
+	fmt.Println("this is the length of virtualnodemap " + strconv.Itoa(len(vnMap)))
+
+	// iterates through the hash range to find next physical node
+	for i := 1; i < len(nodeMap); {
+		nextHashRange := [2]int{startingHashRange[1], startingHashRange[1] + 1}
+		fmt.Println("check this")
+		fmt.Println(vnMap[nextHashRange].ContainerName)
+		fmt.Println(len(vnMap[nextHashRange].ContainerName))
+		if len(vnMap[nextHashRange].ContainerName) != 0 {
+			if preferenceList[vnMap[nextHashRange].Id] == 0 {
+				// i gives the value of its position eg. 1 is first in prefList, 2 is 2nd
+				preferenceList[vnMap[nextHashRange].Id] = i
+				i++
+			}
+		}
+		startingHashRange = nextHashRange
+	}
+
+	return preferenceList
+}
+
+func getHashRange(hashVal int64, totalNumNodes int) [2]int {
+	fmt.Print("this is the hashKey")
+	fmt.Println(hashVal)
+	firstVal := int(hashVal * int64(totalNumNodes))
+	secondVal := firstVal + 1
+	return [2]int{firstVal, secondVal}
 
 func hashValueContains(s []int, e int64) bool {
 	for _, a := range s {

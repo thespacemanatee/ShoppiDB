@@ -75,6 +75,24 @@ services:
       - devnode2:/redis/volume
     networks:
       - db
+  node3: #DNS name 
+      build:
+        context: ./
+        dockerfile: DockerFile_RedisNodeDev
+      container_name: node3
+      environment:
+        - NODE_TOTAL=10
+        - NODE_ID=3
+        - RACE_DETECTOR=1
+        - BUILD_ARGS=./src
+        - SEEDNODES=0 1
+        - MEMBERSHIP=yes
+      volumes:
+        - .:/app
+        - devnode3:/redis/volume
+      networks:
+        - db
+=======
   node3: #DNS name
     build:
       context: ./
@@ -204,12 +222,6 @@ volumes:
   devnode1:
   devnode2:
   devnode3:
-  devnode4:
-  devnode5:
-  devnode6:
-  devnode7:
-  devnode8:
-  devnode9:
 networks:
   db:
     name: db_network

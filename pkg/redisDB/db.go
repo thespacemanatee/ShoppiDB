@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"github.com/go-redis/redis/v8"
 )
+type DatabaseMessage struct {
+	Key string `json:"key"`
+	Value string `json:"value"`
+}
 
 var rdb *redis.Client
 
