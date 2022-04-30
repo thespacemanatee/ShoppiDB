@@ -5,9 +5,11 @@ package gossip
 */
 
 import (
+	httpClient "ShoppiDB/pkg/httpClient"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -79,7 +81,9 @@ func (g *Gossip) Start() {
 				seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
 				seedNode := seedNodesMap[seedID]
 				target := CONN_TYPE + seedNode.ContainerName + CONN_PORT + HTTP_ROUTE
-				g.clientSendMsgWithHTTP(g.HttpClient, target)
+				httpClient := httpClient.GetHTTPClient()
+				fmt.Println("Created new HTTP Client")
+				g.clientSendMsgWithHTTP(httpClient, target)
 			case <-timer.C:
 				ticker.Stop()
 				fmt.Println("")
@@ -98,7 +102,9 @@ func (g *Gossip) Start() {
 	for range ticker2.C {
 		randNode := g.getRandNode()
 		target := CONN_TYPE + randNode.ContainerName + CONN_PORT + HTTP_ROUTE
-		g.clientSendMsgWithHTTP(g.HttpClient, target)
+		httpClient := httpClient.GetHTTPClient()
+		fmt.Println("Created new HTTP Client")
+		go g.clientSendMsgWithHTTP(httpClient, target)
 	}
 }
 
@@ -107,10 +113,12 @@ func (g *Gossip) Start() {
 func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("panic occured", r)
+			fmt.Println("Panic Occur, process recovered", r)
 		}
 	}()
+	g.mu.Lock()
 	msg := GossipMessage{ContainerName: GetLocalContainerName(), MyCommNodeMap: g.CommNodeMap}
+	g.mu.Unlock()
 	msgJson, err1 := json.Marshal(msg)
 	checkErr(err1)
 	req, err2 := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(msgJson))
@@ -118,9 +126,19 @@ func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err3 := client.Do(req)
 	checkErr(err3)
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			checkErr(err)
+			return
+		}
+	}(resp.Body)
 	var respMsg GossipMessage
-	json.NewDecoder(resp.Body).Decode(&respMsg)
+	err := json.NewDecoder(resp.Body).Decode(&respMsg)
+	if err != nil {
+		checkErr(err)
+		return
+	}
 	fmt.Println(GetLocalContainerName(), "received", respMsg.MyCommNodeMap, "from", respMsg.ContainerName, "with", respMsg.Update)
 	g.recvGossipMsg(respMsg)
 }
@@ -328,6 +346,7 @@ func GetLocalNodeID() string {
 func checkErr(err error) {
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 }
 

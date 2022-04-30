@@ -19,7 +19,6 @@ import (
 	"github.com/k0kubun/pp/v3"
 )
 
-var node data_versioning.Node
 var localDataObject data_versioning.DataObject
 
 func main() {
@@ -100,7 +99,6 @@ func listenMessage(ln net.Listener) {
 
 //Example code for sending message through socket
 func sendMessage(id int) {
-	fmt.Printf("Node %s sending message\n", node)
 	target := "Tobechange"
 	time.Sleep(time.Millisecond * 5)
 	con, err := net.Dial("tcp", target)
