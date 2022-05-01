@@ -204,6 +204,12 @@ volumes:
   devnode1:
   devnode2:
   devnode3:
+  devnode4:
+  devnode5:
+  devnode6:
+  devnode7:
+  devnode8:
+  devnode9:
 networks:
   db:
     name: db_network
