@@ -1,10 +1,21 @@
-import { Layout, Menu, MenuProps } from "antd"
-import { UserOutlined } from "@ant-design/icons"
 import { useMemo } from "react"
+import { Button, Layout, Menu, MenuProps } from "antd"
+import { UserOutlined } from "@ant-design/icons"
+
+import { useAppDispatch } from "../features/hooks"
+import { logout } from "../features/auth/authSlice"
+import { persistor } from "../features/store"
 
 const { Sider } = Layout
 
 export default function SidebarMenu() {
+  const dispatch = useAppDispatch()
+
+  const handleLogout = async () => {
+    dispatch(logout())
+    await persistor.purge()
+  }
+
   const items: MenuProps["items"] = useMemo(
     () => [
       {
@@ -57,6 +68,9 @@ export default function SidebarMenu() {
         defaultOpenKeys={["/categories"]}
         items={items}
       />
+      <Button type="primary" block onClick={handleLogout}>
+        Logout
+      </Button>
     </Sider>
   )
 }

@@ -7,7 +7,7 @@ import {
   removeOne,
   setCart,
 } from "../features/cart/cartSlice"
-import { useAppDispatch, useAppSelector } from "../features/cart/hooks"
+import { useAppDispatch, useAppSelector } from "../features/hooks"
 import { putCart } from "../services/api"
 
 import mockData from "../services/mockData"
