@@ -197,7 +197,7 @@ func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	json.NewEncoder(w).Encode(res.DataObject)
+	json.NewEncoder(w).Encode(res.ConflictingObjects)
 }
 
 func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
@@ -333,24 +333,34 @@ func GenTokenSet() [][2]int {
 // map of all nodes where key is order of preference and value is id of node
 func (n *Node) GetPreferenceList(hashKey big.Float) map[int]int {
 	hashKeyInt64, _ := hashKey.Int64()
+	preferenceList := make(map[int]int)
 
 	nodeMap := n.Gossiper.CommNodeMap // to check if it is a phy node
 	startingHashRange := [2]int{int(hashKeyInt64), int(hashKeyInt64) + 1}
-	preferenceList := make(map[int]int)
 	vnMap := n.Gossiper.VirtualNodeMap // get node based on hash val
-	// iterates through the hash range to find next physical node
-	for i := 1; i < len(nodeMap); {
-		nextHashRange := [2]int{startingHashRange[1], startingHashRange[1] + 1}
-		if len(vnMap[nextHashRange].ContainerName) != 0 {
-			if preferenceList[vnMap[nextHashRange].Id] == 0 {
-				// i gives the value of its position eg. 1 is first in prefList, 2 is 2nd
-				preferenceList[vnMap[nextHashRange].Id] = i
-				i++
-			}
+	nodeMapIds := make(map[int]bool)
+	for _, n := range nodeMap {
+		if !n.StatusDown {
+			nodeMapIds[n.Id] = true
 		}
-		startingHashRange = nextHashRange
 	}
-
+	primaryNode := vnMap[startingHashRange]
+	count := 0
+	// iterate thru nodemapids starting from primarynode id +1 to 9 which is max node id
+	for start := primaryNode.Id + 1; start < 10; start++ {
+		// if node id exists in node map add to preference list
+		if nodeMapIds[start] {
+			preferenceList[count] = start
+			count++
+		}
+	}
+	//iterate thru nodemapids starting from node 0 to primarynode id
+	for start := 0; start < primaryNode.Id; start++ {
+		if nodeMapIds[start] {
+			preferenceList[count] = start
+			count++
+		}
+	}
 	return preferenceList
 }
 
