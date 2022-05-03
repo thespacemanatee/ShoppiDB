@@ -2,6 +2,7 @@ package node
 
 import (
 	"ShoppiDB/pkg/byzantine"
+	"ShoppiDB/pkg/consistent_hashing"
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	"ShoppiDB/pkg/gossip"
@@ -185,14 +186,18 @@ func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	//hashKey := consistent_hashing.GetMD5Hash(*message.Key)
-	//nodeStructure := n.GetPreferenceList(*hashKey)
-	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
+	hashKey := consistent_hashing.GetMD5Hash(*message.Key)
+	nodeStructure := n.GetPreferenceList(*hashKey)
+	//nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
 	// not sure where to get context for DataObject
 	vc := data_versioning.NewVectorClock(n.ContainerName)
 	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Context: vc}, false)
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(res)
+	if res.Success {
+		w.WriteHeader(http.StatusAccepted)
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	json.NewEncoder(w).Encode(res.DataObject)
 }
 
 func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
@@ -230,10 +235,13 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 	// not sure where to get context for DataObject
 	vc := data_versioning.NewVectorClock(n.ContainerName)
 	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Value: *message.Value, Context: vc}, true)
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(res)
+	if res.Success {
+		w.WriteHeader(http.StatusAccepted)
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	json.NewEncoder(w).Encode(res.DataObject)
 }
-
 
 func (n *Node) StartHTTPServer() {
 	fmt.Println("Starting HTTP Server")

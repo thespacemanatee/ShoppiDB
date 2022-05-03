@@ -55,7 +55,7 @@ type ClientReq struct {
 
 type Result struct {
 	DataObject data_versioning.DataObject
-	success    bool
+	Success    bool
 }
 
 func (r *Replicator) AddRequest(nodeStructure map[int]int, dataObject data_versioning.DataObject, isWrite bool) Result {
@@ -214,7 +214,7 @@ func (r *Replicator) ReplicateReads(req ClientReq) (bool, string) {
 	fmt.Println("Results for read replication")
 	res, val := r.checkReadQuorum()
 	// sending read result back to client
-	*req.resChannel <- Result{DataObject: data_versioning.DataObject{Key: req.DataObject.Key, Value: val, Context: req.DataObject.Context}, success: res}
+	*req.resChannel <- Result{DataObject: data_versioning.DataObject{Key: req.DataObject.Key, Value: val, Context: req.DataObject.Context}, Success: res}
 	go r.HandleNextInQueue()
 	return res, val
 }
