@@ -1,25 +1,62 @@
-import { Layout, Menu } from "antd"
+import { Layout, Menu, MenuProps } from "antd"
 import { UserOutlined } from "@ant-design/icons"
+import { useMemo } from "react"
 
-const { SubMenu } = Menu
 const { Sider } = Layout
 
 export default function SidebarMenu() {
+  const items: MenuProps["items"] = useMemo(
+    () => [
+      {
+        label: "Categories",
+        icon: <UserOutlined />,
+        key: "/categories",
+        children: [
+          {
+            type: "group",
+            label: "Main Course",
+            key: "main-course",
+            children: [
+              {
+                label: "Breakfast",
+                key: "/breakfast",
+              },
+              {
+                label: "Lunch",
+                key: "/lunch",
+              },
+            ],
+          },
+          {
+            type: "group",
+            label: "Dried Foods",
+            key: "dried-foods",
+            children: [
+              {
+                label: "Snacks",
+                key: "/snacks",
+              },
+              {
+                label: "Biscuits",
+                key: "/biscuits",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    []
+  )
+
   return (
     <Sider>
       <Menu
         className="h-full"
         mode="inline"
-        defaultSelectedKeys={["1"]}
-        defaultOpenKeys={["sub1"]}
-      >
-        <SubMenu key="sub1" icon={<UserOutlined />} title="subnav 1">
-          <Menu.Item key="1">option1</Menu.Item>
-          <Menu.Item key="2">option2</Menu.Item>
-          <Menu.Item key="3">option3</Menu.Item>
-          <Menu.Item key="4">option4</Menu.Item>
-        </SubMenu>
-      </Menu>
+        defaultSelectedKeys={["/lunch"]}
+        defaultOpenKeys={["/categories"]}
+        items={items}
+      />
     </Sider>
   )
 }
