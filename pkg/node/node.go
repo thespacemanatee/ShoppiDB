@@ -170,31 +170,6 @@ func checkHeartbeat(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
 }
 
-func (n *Node) loginHandler(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	fmt.Println("Login function")
-	w.Header().Set("Content-Type", "application/json")
-	if r.Body == nil {
-		http.Error(w, "Please send a request body", 400)
-		return
-	}
-	var message GetRequest
-	err := json.NewDecoder(r.Body).Decode(&message)
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	//hashKey := consistent_hashing.GetMD5Hash(*message.Key)
-	//nodeStructure := n.GetPreferenceList(*hashKey)
-	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
-	// not sure where to get context for DataObject
-	vc := data_versioning.NewVectorClock(n.ContainerName)
-	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Context: vc}, false)
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(res)
-}
-
 func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	fmt.Println("Request for GET function")
@@ -269,7 +244,6 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
 	router.HandleFunc("/get", n.getHandler).Methods("POST")
 	router.HandleFunc("/put", n.putHandler).Methods("POST")
-	router.HandleFunc("/login", loginHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", handlers.CORS()(router)))
 }
 
