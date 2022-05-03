@@ -117,7 +117,7 @@ func (n *Node) replicationHandler(w http.ResponseWriter, r *http.Request) {
 			// coordinator node want to read on current node
 			fmt.Println("Received from Node: " + strconv.Itoa(msg.SenderId) + " read key data")
 			go n.Replicator.HandleReadResponse(msg)
-			
+
 		}
 	case 8:
 		{
@@ -361,6 +361,7 @@ func getHashRange(hashVal int64, totalNumNodes int) [2]int {
 	firstVal := int(hashVal * int64(totalNumNodes))
 	secondVal := firstVal + 1
 	return [2]int{firstVal, secondVal}
+}
 
 func hashValueContains(s []int, e int64) bool {
 	for _, a := range s {
