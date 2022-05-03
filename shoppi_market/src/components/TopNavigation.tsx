@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Menu, MenuProps } from "antd"
 import { useLocation, useNavigate } from "react-router-dom"
-import { useAppSelector } from "../features/cart/hooks"
+
+import { useAppSelector } from "../features/hooks"
 
 export default function TopNavigation() {
   const cart = useAppSelector((state) => state.cart)

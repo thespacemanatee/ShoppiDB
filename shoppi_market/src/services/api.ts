@@ -1,6 +1,6 @@
 import axios from "axios"
 
-import { Context, ShoppingCart } from "../features/cart/types"
+import { Context, ShoppingCart } from "../features/types"
 
 export const getCartByKey = async (key: string) => {
   try {

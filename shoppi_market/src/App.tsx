@@ -1,19 +1,39 @@
 import "antd/dist/antd.min.css"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { useEffect } from "react"
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom"
 
 import ContentLayout from "./components/ContentLayout"
+import { useAppSelector } from "./features/hooks"
 import Cart from "./routes/Cart"
 import Home from "./routes/Home"
+import Login from "./routes/Login"
 
 function App() {
+  const isLoggedIn = useAppSelector((state) => state.auth.isLoggedIn)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigate("/home")
+    } else {
+      navigate("/login")
+    }
+  }, [isLoggedIn, navigate])
+
   return (
     <Routes>
-      <Route path="/" element={<ContentLayout />}>
-        <Route path="home" element={<Home />} />
-        <Route path="cart" element={<Cart />} />
-        <Route path="debug" element={undefined} />
-        <Route index element={<Navigate to="home" replace />} />
-      </Route>
+      {isLoggedIn ? (
+        <Route path="/" element={<ContentLayout />}>
+          <Route path="home" element={<Home />} />
+          <Route path="cart" element={<Cart />} />
+          <Route index element={<Navigate to="home" replace />} />
+        </Route>
+      ) : (
+        <>
+          <Route path="login" element={<Login />} />
+          <Route index element={<Navigate to="login" replace />} />
+        </>
+      )}
     </Routes>
   )
 }

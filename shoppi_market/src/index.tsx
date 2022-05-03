@@ -7,7 +7,7 @@ import "./index.css"
 import App from "./App"
 import reportWebVitals from "./reportWebVitals"
 
-import { persistor, store } from "./features/cart/store"
+import { persistor, store } from "./features/store"
 
 const container = document.getElementById("root")
 const root = createRoot(container!)
