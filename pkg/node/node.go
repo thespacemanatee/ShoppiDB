@@ -1,9 +1,9 @@
 package node
 
 import (
-	"ShoppiDB/pkg/api"
 	"ShoppiDB/pkg/byzantine"
 	replication "ShoppiDB/pkg/data_replication"
+	"ShoppiDB/pkg/data_versioning"
 	"ShoppiDB/pkg/gossip"
 	"encoding/json"
 	"fmt"
@@ -20,6 +20,16 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
+
+type GetRequest struct {
+	Key *string `json:"key"`
+}
+
+type PutRequest struct {
+	Key     *string                      `json:"key"`
+	Value   *string                      `json:"value"`
+	Context *data_versioning.VectorClock `json:"context"`
+}
 
 type Node struct {
 	nonce         []string
@@ -160,82 +170,70 @@ func checkHeartbeat(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
 }
 
-// func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
-// 	enableCors(&w)
-// 	fmt.Println("Request for GET function")
-// 	w.Header().Set("Content-Type", "application/json")
-// 	if r.Body == nil {
-// 		http.Error(w, "Please send a request body", 400)
-// 		return
-// 	}
-// 	var message redisDB.DatabaseMessage
-// 	err := json.NewDecoder(r.Body).Decode(&message)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), 400)
-// 		return
-// 	}
-// 	ctx := context.Background()
-// 	rdb := redisDB.GetDBClient()
-// 	val, err := rdb.Get(ctx, message.Key).Result()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Println("key: ", val)
-// 	w.WriteHeader(http.StatusAccepted)
-// 	json.NewEncoder(w).Encode(val)
-// }
+func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	fmt.Println("Request for GET function")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var message GetRequest
+	err := json.NewDecoder(r.Body).Decode(&message)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	//hashKey := consistent_hashing.GetMD5Hash(*message.Key)
+	//nodeStructure := n.GetPreferenceList(*hashKey)
+	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
+	// not sure where to get context for DataObject
+	vc := data_versioning.NewVectorClock(n.ContainerName)
+	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Context: vc}, false)
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(res)
+}
 
-// func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
-// 	enableCors(&w)
-// 	fmt.Println("Request for PUT function")
-// 	w.Header().Set("Content-Type", "application/json")
-// 	if r.Body == nil {
-// 		http.Error(w, "Please send a request body", 400)
-// 		return
-// 	}
-// 	var message redisDB.DatabaseMessage
-// 	err := json.NewDecoder(r.Body).Decode(&message)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), 400)
-// 		return
-// 	}
-// 	//After receiving put request, hash the key and check for which node to serve
-// 	keyHash, _ := conHashing.GetMD5Hash(message.Key).Int64()
-// 	for vNodeKey, gossipNode := range n.Gossiper.VirtualNodeMap {
-// 		if hashValueContains(vNodeKey[:], keyHash) { //Iterate to identify the respective physical node handling the hash value
-// 			if gossipNode.ContainerName == n.ContainerName { //If is this node handling the hash value, proceed to db
-// 				//**Here has to make a data version and also a data replication before offical write into db
-// 				ctx := context.Background()
-// 				rdb := redisDB.GetDBClient()
-// 				err = rdb.Set(ctx, message.Key, message.Value, 0).Err()
-// 				if err != nil {
-// 					panic(err)
-// 				}
-// 				fmt.Println(message)
-// 				w.WriteHeader(http.StatusAccepted)
-// 				json.NewEncoder(w).Encode(message)
-// 			} else { //Send the request to the respective node and await for reply
-// 				msgJson, err := json.Marshal(message)
-// 				checkErr(err)
-// 				req, err := http.NewRequest(http.MethodPost, "http://"+gossipNode.ContainerName+":8080/put", bytes.NewBuffer(msgJson))
-// 				checkErr(err)
-// 				httpClient := GetHTTPClient()
-// 				resp, err := httpClient.Do(req)
-// 				checkErr(err)
-// 				defer resp.Body.Close()
-// 				b, err := io.ReadAll(resp.Body)
-// 				checkErr(err)
-// 				pp.Println(string(b))
-// 				fmt.Println(resp.Body)
-// 				w.WriteHeader(http.StatusAccepted)
-// 				json.NewEncoder(w).Encode(resp.Body)
-// 			}
-// 		}
-// 	}
-// 	fmt.Println("MISSING HASH")
-// 	w.WriteHeader(http.StatusBadRequest)
-// 	json.NewEncoder(w).Encode("MISSING HASH")
-// }
+func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	fmt.Println("Request for PUT function")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+
+	var message PutRequest
+	err := json.NewDecoder(r.Body).Decode(&message)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	newObject := &data_versioning.DataObject{
+		Key:   *message.Key,
+		Value: *message.Value,
+	}
+	if message.Context == nil {
+		fmt.Println("MESSAGE NO CLOCK!")
+		clock := data_versioning.NewVectorClock(os.Getenv("NODE_ID"))
+		newObject.Context = clock
+	} else {
+		fmt.Println("MESSAGE GOT CLOCK!")
+		newObject.Context = *message.Context
+		data_versioning.UpdateVectorClock(os.Getenv("NODE_ID"), &newObject.Context)
+	}
+
+	// hashKey := consistent_hashing.GetMD5Hash(*message.Key)
+	// nodeStructure := n.GetPreferenceList(*hashKey)
+	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
+	// not sure where to get context for DataObject
+	vc := data_versioning.NewVectorClock(n.ContainerName)
+	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Value: *message.Value, Context: vc}, true)
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(res)
+}
+
 
 func (n *Node) StartHTTPServer() {
 	fmt.Println("Starting HTTP Server")
@@ -245,8 +243,8 @@ func (n *Node) StartHTTPServer() {
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
-	router.HandleFunc("/get", api.GetHandler).Methods("POST")
-	router.HandleFunc("/put", api.PutHandler).Methods("POST")
+	router.HandleFunc("/get", n.getHandler).Methods("POST")
+	router.HandleFunc("/put", n.putHandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", handlers.CORS()(router)))
 }
 
@@ -324,30 +322,17 @@ func GenTokenSet() [][2]int {
 }
 
 // returns preference list
-// function needs to be changed since currently i fix hash to 25
+// map of all nodes where key is order of preference and value is id of node
 func (n *Node) GetPreferenceList(hashKey big.Float) map[int]int {
-	fmt.Println("in getpreferencelist")
-	// fmt.Print("CommNodeMap")
-	// fmt.Println(n.Gossiper.CommNodeMap)
-	// fmt.Print("VirtualNodemap")
-	// fmt.Println(n.Gossiper.VirtualNodeMap)
 	hashKeyInt64, _ := hashKey.Int64()
 
 	nodeMap := n.Gossiper.CommNodeMap // to check if it is a phy node
 	startingHashRange := [2]int{int(hashKeyInt64), int(hashKeyInt64) + 1}
-	fmt.Print("this is starting hash range")
-	fmt.Println(startingHashRange)
-	fmt.Print("this is length of nodeMap" + strconv.Itoa(len(nodeMap)))
 	preferenceList := make(map[int]int)
 	vnMap := n.Gossiper.VirtualNodeMap // get node based on hash val
-	fmt.Println("this is the length of virtualnodemap " + strconv.Itoa(len(vnMap)))
-
 	// iterates through the hash range to find next physical node
 	for i := 1; i < len(nodeMap); {
 		nextHashRange := [2]int{startingHashRange[1], startingHashRange[1] + 1}
-		fmt.Println("check this")
-		fmt.Println(vnMap[nextHashRange].ContainerName)
-		fmt.Println(len(vnMap[nextHashRange].ContainerName))
 		if len(vnMap[nextHashRange].ContainerName) != 0 {
 			if preferenceList[vnMap[nextHashRange].Id] == 0 {
 				// i gives the value of its position eg. 1 is first in prefList, 2 is 2nd
