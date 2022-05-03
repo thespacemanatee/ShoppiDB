@@ -26,8 +26,9 @@ services:
   node0: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node0
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=0
@@ -36,18 +37,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode0:/redis/volume
-    dns:
-      - bind
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node1: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node1
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=1
@@ -56,16 +60,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode1:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node2: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node2
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=2
@@ -74,32 +83,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode2:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node3: #DNS name 
-      build:
-        context: ./
-        dockerfile: DockerFile_RedisNodeDev
-      container_name: node3
-      environment:
-        - NODE_TOTAL=10
-        - NODE_ID=3
-        - RACE_DETECTOR=1
-        - BUILD_ARGS=./src
-        - SEEDNODES=0 1
-        - MEMBERSHIP=yes
-      volumes:
-        - .:/app
-        - devnode3:/redis/volume
-      networks:
-        - db
-  node3: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node3
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=3
@@ -108,16 +106,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode3:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node4: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node4
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=4
@@ -126,16 +129,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode4:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node5: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node5
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=5
@@ -144,15 +152,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode5:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node6: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node6
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=6
@@ -161,16 +175,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode6:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node7: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node7
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=7
@@ -179,16 +198,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode7:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
   node8: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node8
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=8
@@ -197,15 +221,21 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode8:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node9: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node9
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=9
@@ -214,10 +244,15 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode9:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
 
 volumes:
   devnode0:
