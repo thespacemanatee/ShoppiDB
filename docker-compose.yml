@@ -20,6 +20,7 @@ services:
     container_name: load
     volumes:
       - ./loadBalancer/nginx.conf:/etc/nginx/conf.d/default.conf
+    restart: always
     networks:
       - db
   node0: #DNS name
@@ -27,6 +28,7 @@ services:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node0
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=0
@@ -37,14 +39,22 @@ services:
     volumes:
       - .:/app
       - devnode0:/redis/volume
+    dns:
+      - bind
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node1: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node1
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=1
@@ -57,12 +67,18 @@ services:
       - devnode1:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node2: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node2
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=2
@@ -75,11 +91,18 @@ services:
       - devnode2:/redis/volume
     networks:
       - db
-  node3: #DNS name
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  node3: #DNS name 
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node3
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=3
@@ -92,12 +115,18 @@ services:
       - devnode3:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node4: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node4
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=4
@@ -110,12 +139,18 @@ services:
       - devnode4:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node5: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node5
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=5
@@ -128,11 +163,18 @@ services:
       - devnode5:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node6: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node6
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=6
@@ -145,12 +187,18 @@ services:
       - devnode6:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node7: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node7
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=7
@@ -163,12 +211,18 @@ services:
       - devnode7:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node8: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node8
-    restart: always
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=8
@@ -181,11 +235,18 @@ services:
       - devnode8:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   node9: #DNS name
     build:
       context: ./
       dockerfile: DockerFile_RedisNodeDev
     container_name: node9
+    restart: unless-stopped
     environment:
       - NODE_TOTAL=10
       - NODE_ID=9
@@ -198,6 +259,12 @@ services:
       - devnode9:/redis/volume
     networks:
       - db
+    healthcheck:
+      test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   devnode0:
