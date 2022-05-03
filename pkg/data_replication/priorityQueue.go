@@ -1,9 +1,8 @@
 package replication
 
-
 type Item struct {
-	req ClientReq
-	Index   int // The index of the item in the heap.
+	Req   ClientReq
+	Index int // The index of the item in the heap.
 }
 
 type PriorityQueue []*Item
@@ -13,7 +12,7 @@ func (pq PriorityQueue) Len() int { return len(pq) }
 func (pq PriorityQueue) Less(i, j int) bool {
 	// We want Pop to give us the lowest based on expiration number as the priority
 	// The lower the expiry, the higher the priority
-	if pq[i].req.Timestamp.Before(pq[j].req.Timestamp) {
+	if pq[i].Req.Timestamp.Before(pq[j].Req.Timestamp) {
 		return true
 	} else {
 		return false
@@ -28,7 +27,7 @@ func (pq *PriorityQueue) Front() ClientReq {
 	if n > 0 {
 		q := *pq
 		item := q[0]
-		return item.req
+		return item.Req
 	} else {
 		return ClientReq{}
 	}
