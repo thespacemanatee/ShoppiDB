@@ -4,6 +4,7 @@ import { addItemToCart, setCart } from "../features/cart/cartSlice"
 import { useAppDispatch, useAppSelector } from "../features/hooks"
 import { FoodItem } from "../features/types"
 import { putCart } from "../services/api"
+import { CART_KEY } from "../config/constants"
 
 import mockData from "../services/mockData"
 
@@ -16,7 +17,7 @@ export default function Home() {
     try {
       let key = cart.key
       if (!key) {
-        key = "cart-1337"
+        key = CART_KEY
       }
       dispatch(addItemToCart(item))
       const temp = [...cart.items].map((e) => ({ ...e }))

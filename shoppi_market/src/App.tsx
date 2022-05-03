@@ -1,6 +1,12 @@
 import "antd/dist/antd.min.css"
 import { useEffect } from "react"
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom"
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom"
 
 import ContentLayout from "./components/ContentLayout"
 import { useAppSelector } from "./features/hooks"
@@ -11,14 +17,17 @@ import Login from "./routes/Login"
 function App() {
   const isLoggedIn = useAppSelector((state) => state.auth.isLoggedIn)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     if (isLoggedIn) {
-      navigate("/home")
+      if (location.pathname === "/login") {
+        navigate("/home")
+      }
     } else {
       navigate("/login")
     }
-  }, [isLoggedIn, navigate])
+  }, [isLoggedIn, location.pathname, navigate])
 
   return (
     <Routes>
