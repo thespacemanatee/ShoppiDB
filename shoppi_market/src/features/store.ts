@@ -12,7 +12,7 @@ import {
 } from "redux-persist"
 import storage from "redux-persist/lib/storage"
 
-import { cartReducer } from "."
+import { cartReducer, authReducer } from "."
 
 const persistConfig = {
   key: "root",
@@ -21,6 +21,7 @@ const persistConfig = {
 
 const rootReducer = combineReducers({
   cart: cartReducer,
+  auth: authReducer,
 })
 
 const persistedReducer = persistReducer(persistConfig, rootReducer)

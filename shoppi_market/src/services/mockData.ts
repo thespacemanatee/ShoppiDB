@@ -1,4 +1,4 @@
-import { FoodItem } from "../features/cart/types"
+import { FoodItem } from "../features/types"
 
 const mockData: FoodItem[] = [
   {

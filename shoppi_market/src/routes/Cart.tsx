@@ -7,7 +7,7 @@ import {
   removeOne,
   setCart,
 } from "../features/cart/cartSlice"
-import { useAppDispatch, useAppSelector } from "../features/cart/hooks"
+import { useAppDispatch, useAppSelector } from "../features/hooks"
 import { putCart } from "../services/api"
 
 import mockData from "../services/mockData"
@@ -40,7 +40,7 @@ export default function Cart() {
 
   const handleAddOne = async (foodId: string) => {
     try {
-      dispatch(removeOne(foodId))
+      dispatch(addOne(foodId))
       const temp = [...cart.items].map((e) => ({ ...e }))
       const updatedItem = temp.find((e) => e.id === foodId)
       if (updatedItem) {
@@ -67,7 +67,7 @@ export default function Cart() {
 
   const handleRemoveOne = async (foodId: string) => {
     try {
-      dispatch(addOne(foodId))
+      dispatch(removeOne(foodId))
       const temp = [...cart.items].map((e) => ({ ...e }))
       const updatedItem = temp.find((e) => e.id === foodId)
       if (updatedItem) {

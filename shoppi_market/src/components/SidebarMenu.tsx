@@ -1,25 +1,76 @@
-import { Layout, Menu } from "antd"
+import { useMemo } from "react"
+import { Button, Layout, Menu, MenuProps } from "antd"
 import { UserOutlined } from "@ant-design/icons"
 
-const { SubMenu } = Menu
+import { useAppDispatch } from "../features/hooks"
+import { logout } from "../features/auth/authSlice"
+import { persistor } from "../features/store"
+
 const { Sider } = Layout
 
 export default function SidebarMenu() {
+  const dispatch = useAppDispatch()
+
+  const handleLogout = async () => {
+    dispatch(logout())
+    await persistor.purge()
+  }
+
+  const items: MenuProps["items"] = useMemo(
+    () => [
+      {
+        label: "Categories",
+        icon: <UserOutlined />,
+        key: "/categories",
+        children: [
+          {
+            type: "group",
+            label: "Main Course",
+            key: "main-course",
+            children: [
+              {
+                label: "Breakfast",
+                key: "/breakfast",
+              },
+              {
+                label: "Lunch",
+                key: "/lunch",
+              },
+            ],
+          },
+          {
+            type: "group",
+            label: "Dried Foods",
+            key: "dried-foods",
+            children: [
+              {
+                label: "Snacks",
+                key: "/snacks",
+              },
+              {
+                label: "Biscuits",
+                key: "/biscuits",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    []
+  )
+
   return (
     <Sider>
       <Menu
         className="h-full"
         mode="inline"
-        defaultSelectedKeys={["1"]}
-        defaultOpenKeys={["sub1"]}
-      >
-        <SubMenu key="sub1" icon={<UserOutlined />} title="subnav 1">
-          <Menu.Item key="1">option1</Menu.Item>
-          <Menu.Item key="2">option2</Menu.Item>
-          <Menu.Item key="3">option3</Menu.Item>
-          <Menu.Item key="4">option4</Menu.Item>
-        </SubMenu>
-      </Menu>
+        defaultSelectedKeys={["/lunch"]}
+        defaultOpenKeys={["/categories"]}
+        items={items}
+      />
+      <Button type="primary" block onClick={handleLogout}>
+        Logout
+      </Button>
     </Sider>
   )
 }
