@@ -40,8 +40,7 @@ func main() {
 	priorityQueue := make(replication.PriorityQueue, 0)
 	heap.Init(&priorityQueue)
 	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 2, HttpClient: httpClient, LongerTOClient: longerTOClient, Rdb: *redisDB.GetDBClient(), Queue: priorityQueue}
-	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, HttpClient: httpClient, VirtualNodeMap: localVirtualNodeMap}}
-
+	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, VirtualNodeMap: localVirtualNodeMap}}
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
 	key := "hello world"
 	hashKey := consistent_hashing.GetMD5Hash(key)
@@ -51,32 +50,8 @@ func main() {
 	time.Sleep(time.Second * 20)
 	fmt.Println(hashKey)
 	for {
-		if id == "1" {
-			nodeStructure := localNode.GetPreferenceList(*hashKey)
-			go localNode.Replicator.AddRequest(nodeStructure, redisDB.DatabaseMessage{Key: key, Value: "value"}, true)
-			nodeStructure = localNode.GetPreferenceList(*hashKey)
-			go localNode.Replicator.AddRequest(nodeStructure, redisDB.DatabaseMessage{Key: key, Value: "value1"}, true)
-			time.Sleep(time.Second * 10)
-			for {
-			}
-		}
-	}
 
-	// var oppId int
-	// switch id {
-	// case "1":
-	// 	oppId = 2
-	// case "2":
-	// 	oppId = 1
-	// default:
-	// 	oppId = 0
-	// }
-	// nodeDNS, err := getNodeDNS(oppId)
-	// checkErr(err)
-	// time.Sleep(time.Second * 5) //Buffer time to start HTTPSERVER
-	// for {
-	// 	node.BasicHTTPGET(nodeDNS, httpClient)
-	// }
+	}
 }
 
 //Example Code for socket
