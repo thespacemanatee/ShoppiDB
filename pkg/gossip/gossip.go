@@ -37,6 +37,8 @@ type GossipNode struct {
 	ContainerName string
 	TokenSet      [][2]int
 	Membership    bool
+	statusDown    bool
+	failCount     int
 }
 
 type Gossip struct {
@@ -83,7 +85,7 @@ func (g *Gossip) Start() {
 				target := CONN_TYPE + seedNode.ContainerName + CONN_PORT + HTTP_ROUTE
 				httpClient := httpClient.GetHTTPClient()
 				fmt.Println("Created new HTTP Client")
-				g.clientSendMsgWithHTTP(httpClient, target)
+				g.clientSendMsgWithHTTP(httpClient, target, seedNode.ContainerName)
 			case <-timer.C:
 				ticker.Stop()
 				fmt.Println("")
@@ -104,16 +106,29 @@ func (g *Gossip) Start() {
 		target := CONN_TYPE + randNode.ContainerName + CONN_PORT + HTTP_ROUTE
 		httpClient := httpClient.GetHTTPClient()
 		fmt.Println("Created new HTTP Client")
-		go g.clientSendMsgWithHTTP(httpClient, target)
+		go g.clientSendMsgWithHTTP(httpClient, target, randNode.ContainerName)
 	}
 }
 
 // Helper functions for gossip.Start
 
-func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string) {
+func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string, containerName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Panic Occur, process recovered", r)
+			g.mu.Lock()
+			for i, node := range g.CommNodeMap {
+				if node.ContainerName == containerName && !node.statusDown {
+					tempNode := node
+					tempNode.failCount += 1
+					if tempNode.failCount >= 3 {
+						tempNode.statusDown = true
+						tempNode.failCount = 0
+					}
+					g.CommNodeMap[i] = tempNode
+				}
+			}
+			g.mu.Unlock()
 		}
 	}()
 	g.mu.Lock()
@@ -148,7 +163,7 @@ func (g *Gossip) populate(seedNodesArray []string) map[string]GossipNode {
 	g.mu.Lock()
 	seedNodesMap := make(map[string]GossipNode)
 	for _, str := range seedNodesArray {
-		node := GossipNode{Membership: true, ContainerName: nodeidToContainerName(str)}
+		node := GossipNode{Membership: true, ContainerName: nodeidToContainerName(str), statusDown: false}
 		g.CommNodeMap[str] = node
 		// Populating seedNode map as well
 		seedNodesMap[str] = node
@@ -179,17 +194,70 @@ loop:
 func (g *Gossip) recvGossipMsg(msg GossipMessage) {
 	g.mu.Lock()
 	fmt.Println(GetLocalContainerName()+" has received", msg)
+	lastChar := msg.ContainerName[len(msg.ContainerName)-1:]
+	if _, exist := g.CommNodeMap[lastChar]; exist { //May be unnessarcy
+		tempNode := g.CommNodeMap[lastChar]
+		tempNode.failCount = 0
+		tempNode.statusDown = false
+		g.CommNodeMap[lastChar] = tempNode
+	}
 	if msg.Update {
 		for nodeID, gossNode := range msg.MyCommNodeMap {
-			g.CommNodeMap[nodeID] = gossNode
-			for _, rnge := range gossNode.TokenSet {
-				g.VirtualNodeMap[rnge] = gossNode
+			if nodeID != GetLocalNodeID() {
+				url := CONN_TYPE + gossNode.ContainerName + CONN_PORT + "/checkHeartbeat"
+				if _, exist := g.CommNodeMap[nodeID]; exist {
+					if g.CommNodeMap[nodeID].statusDown != gossNode.statusDown {
+						if g.verifyNodeDown(url) == gossNode.statusDown {
+							fmt.Println("Update local copy due to updated status and verfied")
+							g.CommNodeMap[nodeID] = gossNode
+							for _, rnge := range gossNode.TokenSet {
+								g.VirtualNodeMap[rnge] = gossNode
+							}
+						}
+					} else if len(g.CommNodeMap[nodeID].TokenSet) < len(gossNode.TokenSet) { //Have the same status
+						g.CommNodeMap[nodeID] = gossNode
+						for _, rnge := range gossNode.TokenSet {
+							g.VirtualNodeMap[rnge] = gossNode
+						}
+					}
+				} else { //Doesnt exist in the local nodeMap
+					g.CommNodeMap[nodeID] = gossNode
+					for _, rnge := range gossNode.TokenSet {
+						g.VirtualNodeMap[rnge] = gossNode
+					}
+				}
 			}
 		}
 	}
 	fmt.Println(GetLocalContainerName(), "has", g.CommNodeMap)
 	fmt.Println("VNodeMap", g.VirtualNodeMap)
 	g.mu.Unlock()
+}
+
+func (g *Gossip) verifyNodeDown(target string) (result bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Panic Occur, process recovered", r)
+			fmt.Println("Verified failed connection")
+			result = true
+		}
+
+	}()
+	httpClient := httpClient.GetHTTPClient()
+	msg := "check"
+	msgJson, err := json.Marshal(msg)
+	checkErr(err)
+	req, err := http.NewRequest(http.MethodGet, target, bytes.NewBuffer(msgJson))
+	checkErr(err)
+	resp, err := httpClient.Do(req)
+	checkErr(err)
+	var respMsg string
+	err = json.NewDecoder(resp.Body).Decode(&respMsg)
+	if err != nil {
+		return true
+	}
+	fmt.Println("Received checks from", respMsg)
+	return false
 }
 
 /*
@@ -218,6 +286,14 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	var seedNodeTokenSetIsEmpty bool
 	seedNodesArr := getSeedNodes()
 
+	lastChar := msg.ContainerName[len(msg.ContainerName)-1:]
+	if _, exist := g.CommNodeMap[lastChar]; exist { //May be unnessarcy
+		tempNode := g.CommNodeMap[lastChar]
+		tempNode.failCount = 0
+		tempNode.statusDown = false
+		g.CommNodeMap[lastChar] = tempNode
+	}
+
 	for _, seed := range seedNodesArr {
 		if gossNode := msg.MyCommNodeMap[seed]; len(gossNode.TokenSet) == 0 {
 			seedNodeTokenSetIsEmpty = true
@@ -233,10 +309,22 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 			}
 			senderUniqueNodeCounter += 1
 		} else {
+			if senderKey != GetLocalNodeID() {
+				if senderValue.statusDown != g.CommNodeMap[senderKey].statusDown {
+					url := CONN_TYPE + senderValue.ContainerName + CONN_PORT + "/checkHeartbeat"
+					if g.verifyNodeDown(url) == senderValue.statusDown {
+						g.CommNodeMap[senderKey] = senderValue
+					} else {
+						fmt.Println("Local copy is correct")
+					}
+				} else if len(g.CommNodeMap[senderKey].TokenSet) < len(senderValue.TokenSet) {
+					g.CommNodeMap[senderKey] = senderValue
+				}
+			}
 			commonNodeCounter += 1
 		}
 	}
-
+	fmt.Println("Updated node map from inputs ", g.CommNodeMap)
 	if iGotUniqueNodes := len(g.CommNodeMap) - commonNodeCounter - senderUniqueNodeCounter; iGotUniqueNodes > 0 || seedNodeTokenSetIsEmpty {
 		fmt.Println(GetLocalContainerName(), "server has unique nodes!")
 		updateForSender = true
