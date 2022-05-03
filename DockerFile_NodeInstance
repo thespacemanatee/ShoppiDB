@@ -1,14 +1,18 @@
 #Template
 FROM golang:latest as main
-WORKDIR /app
+WORKDIR /ShoppiDB
 COPY ./go.mod ./
 COPY ./go.sum ./
 RUN go mod download
 COPY ./src/*.go ./
-RUN go build -o /shoppidb
+COPY ./pkg ./pkg
+RUN go build -o ./shoppidb
 
 FROM redis:latest
+RUN apt update
+RUN apt install curl -y
 WORKDIR /app
-COPY --from=main ./shoppidb ./
+COPY --from=main /ShoppiDB/shoppidb ./
 COPY ./wrapper_services.sh ./wrapper_services.sh 
-CMD [ "./wrapper_services.sh" ]
+CMD [ "./wrapper_services.sh"]
+# CMD ["tail", "-f", "/dev/null"]

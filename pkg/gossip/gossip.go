@@ -45,7 +45,6 @@ type Gossip struct {
 	mu             sync.Mutex
 	CommNodeMap    map[string]GossipNode //Map ID to physical node
 	VirtualNodeMap map[[2]int]GossipNode //Itoa: convert int to string first when populating. Convert to int when reading.
-	HttpClient     *http.Client
 }
 
 /*
@@ -83,9 +82,8 @@ func (g *Gossip) Start() {
 				seedID := seedNodesArr[rand.Intn(len(seedNodesArr))]
 				seedNode := seedNodesMap[seedID]
 				target := CONN_TYPE + seedNode.ContainerName + CONN_PORT + HTTP_ROUTE
-				httpClient := httpClient.GetHTTPClient()
 				fmt.Println("Created new HTTP Client")
-				g.clientSendMsgWithHTTP(httpClient, target, seedNode.ContainerName)
+				g.clientSendMsgWithHTTP(target, seedNode.ContainerName)
 			case <-timer.C:
 				ticker.Stop()
 				fmt.Println("")
@@ -104,15 +102,14 @@ func (g *Gossip) Start() {
 	for range ticker2.C {
 		randNode := g.getRandNode()
 		target := CONN_TYPE + randNode.ContainerName + CONN_PORT + HTTP_ROUTE
-		httpClient := httpClient.GetHTTPClient()
 		fmt.Println("Created new HTTP Client")
-		go g.clientSendMsgWithHTTP(httpClient, target, randNode.ContainerName)
+		go g.clientSendMsgWithHTTP(target, randNode.ContainerName)
 	}
 }
 
 // Helper functions for gossip.Start
 
-func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string, containerName string) {
+func (g *Gossip) clientSendMsgWithHTTP(target string, containerName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Panic Occur, process recovered", r)
@@ -134,6 +131,7 @@ func (g *Gossip) clientSendMsgWithHTTP(client *http.Client, target string, conta
 	g.mu.Lock()
 	msg := GossipMessage{ContainerName: GetLocalContainerName(), MyCommNodeMap: g.CommNodeMap}
 	g.mu.Unlock()
+	client := httpClient.GetHTTPClient()
 	msgJson, err1 := json.Marshal(msg)
 	checkErr(err1)
 	req, err2 := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(msgJson))
