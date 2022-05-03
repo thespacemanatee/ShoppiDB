@@ -285,10 +285,14 @@ func getNodeTotal() int {
 * @return a nested array consisting of the assigned token set
  */
 
-func GenTokenSet() [][2]int {
+func GenTokenSet(idInt int) [][2]int {
 	var tokenSet [][2]int
 	numNodes := getNodeTotal()
 	numTokens := math.Floor(64 / float64(numNodes))
+	remainingTokens := 64 % numNodes
+	if idInt >= (numNodes-remainingTokens) {
+		numTokens += 1
+	}
 	for i := 0; i < int(numTokens); i++ {
 		rand.Seed(time.Now().UnixNano())
 		min := 0
@@ -361,6 +365,7 @@ func getHashRange(hashVal int64, totalNumNodes int) [2]int {
 	firstVal := int(hashVal * int64(totalNumNodes))
 	secondVal := firstVal + 1
 	return [2]int{firstVal, secondVal}
+}
 
 func hashValueContains(s []int, e int64) bool {
 	for _, a := range s {

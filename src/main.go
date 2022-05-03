@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	tokenSet := nodePkg.GenTokenSet()
+	tokenSet := nodePkg.GenTokenSet(idInt)
 	gossipNode := gossip.GossipNode{Id: idInt, ContainerName: gossip.GetLocalContainerName(), Membership: gossip.GetMembership(), TokenSet: tokenSet}
 	localCommNodeMap := make(map[string]gossip.GossipNode)
 	localCommNodeMap[gossip.GetLocalNodeID()] = gossipNode
