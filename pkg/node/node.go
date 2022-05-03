@@ -165,6 +165,11 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
 }
 
+func checkHeartbeat(w http.ResponseWriter, r *http.Request) {
+	id := os.Getenv("NODE_ID")
+	fmt.Fprintln(w, "U have called node "+id+", The path is:", html.EscapeString(r.URL.Path))
+}
+
 func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	fmt.Println("Request for GET function")
@@ -229,10 +234,12 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
+
 func (n *Node) StartHTTPServer() {
 	fmt.Println("Starting HTTP Server")
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", defaultHandler).Methods("GET")
+	router.HandleFunc("/checkHeartbeat", checkHeartbeat).Methods("GET")
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
