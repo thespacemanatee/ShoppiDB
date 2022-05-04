@@ -5,6 +5,8 @@ import (
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	"ShoppiDB/pkg/gossip"
+	"ShoppiDB/pkg/redisDB"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -189,8 +191,7 @@ func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 	//nodeStructure := n.GetPreferenceList(*hashKey)
 	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
 	// not sure where to get context for DataObject
-	vc := data_versioning.NewVectorClock(n.ContainerName)
-	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Context: vc}, false)
+	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key}, false)
 	if res.Success {
 		w.WriteHeader(http.StatusAccepted)
 	} else {
@@ -207,6 +208,9 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Please send a request body", 400)
 		return
 	}
+
+	ctx := context.Background()
+	rdb := redisDB.GetDBClient()
 
 	var message PutRequest
 	err := json.NewDecoder(r.Body).Decode(&message)
@@ -228,12 +232,21 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 		data_versioning.UpdateVectorClock(os.Getenv("NODE_ID"), &newObject.Context)
 	}
 
+	fmt.Println("Writing to database")
+	marshal, err := json.Marshal(newObject)
+	if err != nil {
+		return
+	}
+	err = rdb.Set(ctx, *message.Key, marshal, 0).Err()
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
 	// hashKey := consistent_hashing.GetMD5Hash(*message.Key)
 	// nodeStructure := n.GetPreferenceList(*hashKey)
 	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
-	// not sure where to get context for DataObject
-	vc := data_versioning.NewVectorClock(n.ContainerName)
-	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Value: *message.Value, Context: vc}, true)
+	res := n.Replicator.AddRequest(nodeStructure, *newObject, true)
 	if res.Success {
 		w.WriteHeader(http.StatusAccepted)
 	} else {
