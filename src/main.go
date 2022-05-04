@@ -46,6 +46,8 @@ func main() {
 	time.Sleep(time.Second * 10)
 	go localNode.Gossiper.Start()
 	time.Sleep(time.Second * 20)
+	for {
+	}
 	// key := "key"
 	// value := "helloworld"
 	// //hashKey := consistent_hashing.GetMD5Hash(key)

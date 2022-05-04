@@ -2,6 +2,7 @@ package node
 
 import (
 	"ShoppiDB/pkg/byzantine"
+	"ShoppiDB/pkg/consistent_hashing"
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	"ShoppiDB/pkg/gossip"
@@ -49,6 +50,7 @@ type Node struct {
 }
 
 func (n *Node) merkleCheck(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received merkle check")
 	w.Header().Set("Content-Type", "application/json")
 	if r.Body == nil {
 		http.Error(w, "Please send a request body", 400)
@@ -60,6 +62,7 @@ func (n *Node) merkleCheck(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	fmt.Println("Sending merkle tree to ", merkleMessage.NodeName, " to check")
 	w.WriteHeader(http.StatusAccepted)
 	target := "http://" + merkleMessage.NodeName + ":8080" + "/merkleupdate"
 	go n.Merkler.ReceivedMerkleTree(merkleMessage.HashNo, merkleMessage.Tree, target)
@@ -77,11 +80,13 @@ func (n *Node) initiateMerkleCheck(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	fmt.Println("Received intitiate merkle check")
 	w.WriteHeader(http.StatusAccepted)
 	go n.Merkler.InitiateMerkleCheck(merkleInitateMessage.HashNumbers, merkleInitateMessage.NodeName)
 }
 
 func (n *Node) merkleUpdate(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received merkle request for update")
 	w.Header().Set("Content-Type", "application/json")
 	if r.Body == nil {
 		http.Error(w, "Please send a request body", 400)
@@ -305,8 +310,9 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-
-	// hashKey := consistent_hashing.GetMD5Hash(*message.Key)
+	fmt.Println("Successfully write to db, updating merkleTree")
+	hashKeyValue, _ := consistent_hashing.GetMD5Hash(*message.Key).Int64()
+	n.Merkler.UpdateMapData(int(hashKeyValue), *message.Key, *message.Value)
 	// nodeStructure := n.GetPreferenceList(*hashKey)
 	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
 	res := n.Replicator.AddRequest(nodeStructure, *newObject, true)

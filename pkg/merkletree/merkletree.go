@@ -107,14 +107,14 @@ func (m *RequestContentMap) CompareTree(compareTree *merkletree.MerkleTree) ([]s
 	}
 }
 
-func (m *RequestContentMap) updateMapData(key string, data string) {
+func (m *RequestContentMap) updateMapDataContent(key string, data string) {
 	m.M[key] = RequestContent{key: key, data: data}
 	m.sortMap()
 }
 
-func (merkler *Merkler) updateMapData(hashNo int, key string, data string) {
+func (merkler *Merkler) UpdateMapData(hashNo int, key string, data string) {
 	merkler.mu.Lock()
-	merkler.HashNumberToKey[hashNo].updateMapData(key, data)
+	merkler.HashNumberToKey[hashNo].updateMapDataContent(key, data)
 	merkler.mu.Unlock()
 }
 
@@ -148,7 +148,7 @@ func (merkler *Merkler) ReceivedMerkleTree(hashNo int, compareTree *merkletree.M
 		ctx := context.Background()
 		rdb := redisDB.GetDBClient()
 		for key, val := range respMsg.Result {
-			merkler.HashNumberToKey[hashNo].updateMapData(key, val)
+			merkler.HashNumberToKey[hashNo].updateMapDataContent(key, val)
 			newObject := dataObject{Key: key, Value: val}
 			marshal, err := json.Marshal(newObject)
 			checkErr(err)

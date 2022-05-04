@@ -392,7 +392,7 @@ func (g *Gossip) askMerkle(targetNode int) {
 	msgJson, err := json.Marshal(msg)
 	checkErr(err)
 	target := "http://localhost:8080/initiatemerklecheck"
-	req, err := http.NewRequest(http.MethodGet, target, bytes.NewBuffer(msgJson))
+	req, err := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(msgJson))
 	checkErr(err)
 	resp, err := httpClient.Do(req)
 	checkErr(err)
