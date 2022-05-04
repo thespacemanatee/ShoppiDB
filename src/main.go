@@ -37,8 +37,9 @@ func main() {
 	priorityQueue := make(replication.PriorityQueue, 0)
 	heap.Init(&priorityQueue)
 	hashTree := make(map[int]*merkle.RequestContentMap)
+	merkler := merkle.Merkler{HashNumberToKey: hashTree}
 	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 1, Queue: &priorityQueue}
-	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, VirtualNodeMap: localVirtualNodeMap}, HashNumberToKey: hashTree}
+	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, VirtualNodeMap: localVirtualNodeMap}, Merkler: merkler}
 
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
 	go localNode.StartHTTPServer()
