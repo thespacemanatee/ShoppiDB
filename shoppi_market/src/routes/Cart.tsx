@@ -21,9 +21,20 @@ export default function Cart() {
   useEffect(() => {
     ;(async () => {
       const res = await getCartByKey(CART_KEY)
-      console.log(res)
+      const data = res?.data[CART_KEY]
+      const key = data.key
+      const items = JSON.parse(data?.value)
+      const context = data.context
+      console.log(key, items, context)
+      dispatch(
+        setCart({
+          key,
+          items,
+          context,
+        })
+      )
     })()
-  }, [])
+  }, [dispatch])
 
   const handleRemoveFromCart = async (foodId: string) => {
     try {
