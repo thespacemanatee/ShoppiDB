@@ -2,9 +2,11 @@ package node
 
 import (
 	"ShoppiDB/pkg/byzantine"
+	"ShoppiDB/pkg/consistent_hashing"
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	"ShoppiDB/pkg/gossip"
+	merkle "ShoppiDB/pkg/merkletree"
 	"ShoppiDB/pkg/redisDB"
 	"context"
 	"encoding/json"
@@ -40,10 +42,76 @@ type Node struct {
 	Membership    bool
 	Replicator    *replication.Replicator
 	Gossiper      gossip.Gossip
+	Merkler       merkle.Merkler
 
 	// IsSeed            bool
 	// NodeRingPositions []int
 	// Ring              *conHashing.Ring
+}
+
+func (n *Node) merkleCheck(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received merkle check")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var merkleMessage merkle.MerkleMessage
+	err := json.NewDecoder(r.Body).Decode(&merkleMessage)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	fmt.Println("Sending merkle tree to ", merkleMessage.NodeName, " to check")
+	w.WriteHeader(http.StatusAccepted)
+	target := "http://" + merkleMessage.NodeName + ":8080" + "/merkleupdate"
+	go n.Merkler.ReceivedMerkleTree(merkleMessage.HashNo, merkleMessage.Tree, target)
+}
+
+func (n *Node) initiateMerkleCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var merkleInitateMessage merkle.MerkleInitateMessage
+	err := json.NewDecoder(r.Body).Decode(&merkleInitateMessage)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	fmt.Println("Received intitiate merkle check")
+	w.WriteHeader(http.StatusAccepted)
+	go n.Merkler.InitiateMerkleCheck(merkleInitateMessage.HashNumbers, merkleInitateMessage.NodeName)
+}
+
+func (n *Node) merkleUpdate(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received merkle request for update")
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", 400)
+		return
+	}
+	var merkleUpdateMessage merkle.MerkleUpdateMessage
+	err := json.NewDecoder(r.Body).Decode(&merkleUpdateMessage)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	result := make(map[string]string)
+	for _, i := range merkleUpdateMessage.Keys {
+		ctx := context.Background()
+		rdb := redisDB.GetDBClient()
+		val, err := rdb.Get(ctx, i).Result()
+		if err != nil {
+			fmt.Println(err)
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		result[i] = val
+	}
+	replyMessage := merkle.MerkleReplyUpdateMessage{Result: result}
+	json.NewEncoder(w).Encode(replyMessage)
 }
 
 func (n *Node) updateNonce(nonce string) {
@@ -242,8 +310,9 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-
-	// hashKey := consistent_hashing.GetMD5Hash(*message.Key)
+	fmt.Println("Successfully write to db, updating merkleTree")
+	hashKeyValue, _ := consistent_hashing.GetMD5Hash(*message.Key).Int64()
+	n.Merkler.UpdateMapData(int(hashKeyValue), *message.Key, *message.Value)
 	// nodeStructure := n.GetPreferenceList(*hashKey)
 	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
 	res := n.Replicator.AddRequest(nodeStructure, *newObject, true)
@@ -260,6 +329,9 @@ func (n *Node) StartHTTPServer() {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", defaultHandler).Methods("GET")
 	router.HandleFunc("/checkHeartbeat", checkHeartbeat).Methods("GET")
+	router.HandleFunc("/merklecheck", n.merkleCheck).Methods("POST")
+	router.HandleFunc("/merkleupdate", n.merkleUpdate).Methods("POST")
+	router.HandleFunc("/initiatemerklecheck", n.initiateMerkleCheck).Methods("POST")
 	router.HandleFunc("/byzantine", byzantineHandler).Methods("POST")
 	router.HandleFunc("/replication", n.replicationHandler).Methods("POST")
 	router.HandleFunc("/gossip", n.gossipHandler).Methods("POST")
