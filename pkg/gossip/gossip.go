@@ -6,6 +6,7 @@ package gossip
 
 import (
 	httpClient "ShoppiDB/pkg/httpClient"
+	merkle "ShoppiDB/pkg/merkletree"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -193,36 +194,50 @@ func (g *Gossip) recvGossipMsg(msg GossipMessage) {
 	g.mu.Lock()
 	fmt.Println(GetLocalContainerName()+" has received", msg)
 	lastChar := msg.ContainerName[len(msg.ContainerName)-1:]
-	if _, exist := g.CommNodeMap[lastChar]; exist { //May be unnessarcy
+	if _, exist := g.CommNodeMap[lastChar]; exist {
 		tempNode := g.CommNodeMap[lastChar]
+		nodeId, err := strconv.Atoi(GetLocalNodeID())
+		if err != nil {
+			checkErr(err)
+		}
+		receivedId, err := strconv.Atoi(lastChar)
+		if err != nil {
+			checkErr(err)
+		}
+		booResult := checkPreferenceList(nodeId, receivedId)
+		if tempNode.StatusDown && booResult {
+			go g.askMerkle(receivedId)
+		}
 		tempNode.failCount = 0
 		tempNode.StatusDown = false
 		g.CommNodeMap[lastChar] = tempNode
 	}
 	if msg.Update {
 		for nodeID, gossNode := range msg.MyCommNodeMap {
-			if nodeID != GetLocalNodeID() {
-				url := CONN_TYPE + gossNode.ContainerName + CONN_PORT + "/checkHeartbeat"
-				if _, exist := g.CommNodeMap[nodeID]; exist {
-					if g.CommNodeMap[nodeID].StatusDown != gossNode.StatusDown {
-						if g.verifyNodeDown(url) == gossNode.StatusDown {
-							fmt.Println("Update local copy due to updated status and verfied")
-							g.CommNodeMap[nodeID] = gossNode
-							for _, rnge := range gossNode.TokenSet {
-								g.VirtualNodeMap[rnge] = gossNode
-							}
-						}
-					} else if len(g.CommNodeMap[nodeID].TokenSet) < len(gossNode.TokenSet) { //Have the same status
+			currentNodeID := GetLocalNodeID()
+			fmt.Println("Update true, the node update is", nodeID, "and current id", currentNodeID)
+			url := CONN_TYPE + gossNode.ContainerName + CONN_PORT + "/checkHeartbeat"
+			if _, exist := g.CommNodeMap[nodeID]; exist {
+				if g.CommNodeMap[nodeID].StatusDown != gossNode.StatusDown {
+					if g.verifyNodeDown(url) == gossNode.StatusDown {
+						fmt.Println("Update local copy due to updated status and verfied")
 						g.CommNodeMap[nodeID] = gossNode
 						for _, rnge := range gossNode.TokenSet {
 							g.VirtualNodeMap[rnge] = gossNode
 						}
 					}
-				} else { //Doesnt exist in the local nodeMap
+				} else if len(g.CommNodeMap[nodeID].TokenSet) < len(gossNode.TokenSet) { //Have the same status
+					fmt.Println("Update local copy due larger TokenSet")
 					g.CommNodeMap[nodeID] = gossNode
 					for _, rnge := range gossNode.TokenSet {
 						g.VirtualNodeMap[rnge] = gossNode
 					}
+				}
+			} else { //Doesnt exist in the local nodeMap
+				fmt.Println("Update local copy due to key doesnt exist")
+				g.CommNodeMap[nodeID] = gossNode
+				for _, rnge := range gossNode.TokenSet {
+					g.VirtualNodeMap[rnge] = gossNode
 				}
 			}
 		}
@@ -285,8 +300,20 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	seedNodesArr := getSeedNodes()
 
 	lastChar := msg.ContainerName[len(msg.ContainerName)-1:]
-	if _, exist := g.CommNodeMap[lastChar]; exist { //May be unnessarcy
+	if _, exist := g.CommNodeMap[lastChar]; exist {
 		tempNode := g.CommNodeMap[lastChar]
+		nodeId, err := strconv.Atoi(GetLocalNodeID())
+		if err != nil {
+			checkErr(err)
+		}
+		receivedId, err := strconv.Atoi(lastChar)
+		if err != nil {
+			checkErr(err)
+		}
+		booResult := checkPreferenceList(nodeId, receivedId)
+		if tempNode.StatusDown && booResult {
+			go g.askMerkle(receivedId)
+		}
 		tempNode.failCount = 0
 		tempNode.StatusDown = false
 		g.CommNodeMap[lastChar] = tempNode
@@ -346,6 +373,34 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 	return gossipMessage
 }
 
+func (g *Gossip) askMerkle(targetNode int) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Panic Occur, process recovered", r)
+			fmt.Println("Send request for merkle")
+		}
+	}()
+	tempSlice := make([]int, 0, len(g.CommNodeMap[GetLocalNodeID()].TokenSet)*2)
+	for _, i := range g.CommNodeMap[GetLocalNodeID()].TokenSet {
+		for _, x := range i {
+			tempSlice = append(tempSlice, x)
+		}
+	}
+	nodeId := strconv.Itoa(targetNode)
+	httpClient := httpClient.GetHTTPClient()
+	msg := merkle.MerkleInitateMessage{NodeName: "node" + nodeId, HashNumbers: tempSlice}
+	msgJson, err := json.Marshal(msg)
+	checkErr(err)
+	target := "http://localhost:8080/initiatemerklecheck"
+	req, err := http.NewRequest(http.MethodGet, target, bytes.NewBuffer(msgJson))
+	checkErr(err)
+	resp, err := httpClient.Do(req)
+	checkErr(err)
+	var respMsg string
+	err = json.NewDecoder(resp.Body).Decode(&respMsg)
+	fmt.Println("Successfully initiate request to localhost", respMsg)
+}
+
 //  General helper functions
 
 func (g *GossipNode) GetId() int {
@@ -385,6 +440,14 @@ func GetLocalContainerName() string {
 
 func getSeedNodes() []string {
 	return strings.Split(os.Getenv("SEEDNODES"), " ")
+}
+
+func checkPreferenceList(x, y int) bool {
+	if y > x && y <= (x+2) {
+		return true
+	} else {
+		return false
+	}
 }
 
 func nodeidToContainerName(nodeid string) string {

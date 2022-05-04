@@ -42,7 +42,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -65,7 +65,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -88,7 +88,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -111,7 +111,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -134,7 +134,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -157,7 +157,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -180,7 +180,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -203,7 +203,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -226,7 +226,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
@@ -249,7 +249,7 @@ services:
       - db
     healthcheck:
       test: curl -f "http://localhost:8080/checkHeartbeat"|| exit 1
-      interval: 30s
+      interval: 20s
       timeout: 10s
       retries: 5
       start_period: 10s
