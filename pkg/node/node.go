@@ -189,8 +189,7 @@ func (n *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 	//nodeStructure := n.GetPreferenceList(*hashKey)
 	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
 	// not sure where to get context for DataObject
-	vc := data_versioning.NewVectorClock(n.ContainerName)
-	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Context: vc}, false)
+	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key} ,false)
 	if res.Success {
 		w.WriteHeader(http.StatusAccepted)
 	} else {
@@ -232,8 +231,7 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 	// nodeStructure := n.GetPreferenceList(*hashKey)
 	nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
 	// not sure where to get context for DataObject
-	vc := data_versioning.NewVectorClock(n.ContainerName)
-	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Value: *message.Value, Context: vc}, true)
+	res := n.Replicator.AddRequest(nodeStructure, data_versioning.DataObject{Key: *message.Key, Value: *message.Value, Context: newObject.Context}, true)
 	if res.Success {
 		w.WriteHeader(http.StatusAccepted)
 	} else {
@@ -293,7 +291,7 @@ func getNodeTotal() int {
 * Eg. [[1,2], [4,5],[24,25]]
 *
 *
-* @return a nested array consisting of the assigned token set
+* @return a nested a	rray consisting of the assigned token set
  */
 
 func GenTokenSet() [][2]int {

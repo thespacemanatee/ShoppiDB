@@ -43,10 +43,27 @@ func main() {
 	time.Sleep(time.Second * 10)
 	go localNode.Gossiper.Start()
 	time.Sleep(time.Second * 20)
-
-	for {
-
-	}
+	// key := "key"
+	// value := "helloworld"
+	// //hashKey := consistent_hashing.GetMD5Hash(key)
+	// newObject := &data_versioning.DataObject{
+	// 	Key:   key,
+	// 	Value: "helloworld",
+	// }
+	// clock := data_versioning.NewVectorClock(id)
+	// newObject.Context = clock
+	// newObject.Key = key
+	// newObject.Value = value
+	// for {
+	// 	if id == "1" {
+	// 		nodeStructure := map[int]int{1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 0}
+	// 		res := localNode.Replicator.AddRequest(nodeStructure, *newObject, false)
+	// 		fmt.Println(res)
+	// 		time.Sleep(time.Second * 10)
+	// 		for {
+	// 		}
+	// 	}
+	// }
 }
 
 //Example Code for socket
