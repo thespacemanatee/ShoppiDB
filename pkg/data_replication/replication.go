@@ -209,6 +209,7 @@ func (r *Replicator) ReplicateReads(req ClientReq) {
 			fmt.Println("Message to " + strconv.Itoa(t) + " failed")
 		}
 	}
+	r.readOwnValue(req)
 	// sents to nodes next in priority list
 	time.Sleep(time.Second * 1)
 	fmt.Println("Results for read replication")
@@ -345,7 +346,7 @@ func (r *Replicator) HandleHandoffCommit(msg ReplicationMessage) {
 	rdb := redisDB.GetDBClient()
 	err = rdb.Set(ctx, data.Key, dataJson, 0).Err()
 	if err != nil {
-		panic(err)
+		fmt.Print(err)
 	}
 	msgToIntended := ReplicationMessage{SenderId: getOwnId(), Dest: msg.IntendedRecipientId, DataObject: msg.DataObject, MessageCode: 6}
 	for {
@@ -383,7 +384,7 @@ func (r *Replicator) HandleHandoffToIntended(msg ReplicationMessage) {
 	rdb := redisDB.GetDBClient()
 	err = rdb.Set(ctx, data.Key, dataJson, 0).Err()
 	if err != nil {
-		panic(err)
+		fmt.Print(err)
 	}
 }
 
@@ -445,4 +446,20 @@ func GetHTTPClient(timeout time.Duration) *http.Client {
 		Transport: tr,
 	}
 	return client
+}
+
+func (r *Replicator) readOwnValue(req ClientReq) {
+	r.mu.Lock()
+	rdb := redisDB.GetDBClient()
+	data := req.DataObject
+	ctx := context.Background()
+	valJson, err := rdb.Get(ctx, data.Key).Result()
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		var val data_versioning.DataObject
+		json.Unmarshal([]byte(valJson), &val)
+		r.ReadCheck[getOwnId()] = val
+	}
+	r.mu.Unlock()
 }

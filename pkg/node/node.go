@@ -306,7 +306,7 @@ func getNodeTotal() int {
 * Eg. [[1,2], [4,5],[24,25]]
 *
 *
-* @return a nested array consisting of the assigned token set
+* @return a nested a	rray consisting of the assigned token set
  */
 
 func GenTokenSet() [][2]int {
