@@ -5,6 +5,7 @@ import (
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	"ShoppiDB/pkg/gossip"
+	merkle "ShoppiDB/pkg/merkletree"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -32,13 +33,13 @@ type PutRequest struct {
 }
 
 type Node struct {
-	nonce         []string
-	ContainerName string
-	TokenSet      [][2]int
-	Membership    bool
-	Replicator    *replication.Replicator
-	Gossiper      gossip.Gossip
-
+	nonce           []string
+	ContainerName   string
+	TokenSet        [][2]int
+	Membership      bool
+	Replicator      *replication.Replicator
+	Gossiper        gossip.Gossip
+	HashNumberToKey map[int]*merkle.RequestContentMap
 	// IsSeed            bool
 	// NodeRingPositions []int
 	// Ring              *conHashing.Ring
@@ -233,7 +234,6 @@ func (n *Node) putHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(res)
 }
-
 
 func (n *Node) StartHTTPServer() {
 	fmt.Println("Starting HTTP Server")

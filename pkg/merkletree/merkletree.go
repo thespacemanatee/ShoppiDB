@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 
 	"github.com/cbergoon/merkletree"
 )
 
 type RequestContentMap struct {
-	m    map[string]*RequestContent
+	m    map[string]RequestContent
 	tree *merkletree.MerkleTree
 }
 
@@ -46,18 +47,9 @@ func (m *RequestContentMap) sortMap() {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	tempMap := make(map[string]*RequestContent)
-	for _, k := range keys {
-		tempMap[k] = m.m[k]
-	}
-	m.m = tempMap
-	m.updateTree()
-}
-
-func (m *RequestContentMap) updateTree() {
 	var list []merkletree.Content
-	for _, r := range m.m {
-		list = append(list, r)
+	for _, k := range keys {
+		list = append(list, m.m[k])
 	}
 	t, err := merkletree.NewTree(list)
 	if err != nil {
@@ -66,59 +58,71 @@ func (m *RequestContentMap) updateTree() {
 	m.tree = t
 }
 
-func (m *RequestContentMap) compareTree(compareTree *merkletree.MerkleTree) ([]*RequestContent, error) {
+func (m *RequestContentMap) compareTree(compareTree *merkletree.MerkleTree) ([]string, error) {
 	res := bytes.Compare(m.tree.MerkleRoot(), compareTree.MerkleRoot())
-	result := make([]*RequestContent, 0, len(m.tree.Leafs))
+	result := make([]string, 0, len(m.tree.Leafs))
 	if res == 0 {
-		return []*RequestContent{}, errors.New("no conflict")
+		return []string{}, errors.New("no conflict")
 	} else {
-		leftResult, err := getLeafDifferences(m.tree.Root.Left.Tree, compareTree.Root.Left.Tree)
-		if err != nil {
-			rightResult, err := getLeafDifferences(m.tree.Root.Right.Tree, compareTree.Root.Right.Tree)
+		for _, c := range m.m {
+			_, index, err := compareTree.GetMerklePath(c)
 			if err != nil {
-				fmt.Println("IMPOSSIBLE")
-				return []*RequestContent{}, errors.New("Impossible") //IMPOSSIBLE
+				log.Fatal(err)
 			}
-			result = append(result, rightResult...)
-			return result, nil //Result from right
+			if len(index) > 0 {
+				result = append(result, c.key)
+			}
 		}
-		result = append(result, leftResult...)
-		rightResult, err := getLeafDifferences(m.tree.Root.Right.Tree, compareTree.Root.Right.Tree)
-		if err != nil {
-			return []*RequestContent{}, nil //Result from left
-		}
-		result = append(result, rightResult...)
-		return result, nil //Result from both left and right
+		return result, nil
 	}
 }
 
-func getLeafDifferences(m1 *merkletree.MerkleTree, m2 *merkletree.MerkleTree) ([]*RequestContent, error) {
-	result := make([]*RequestContent, 0, len(m1.Leafs))
-	res := bytes.Compare(m1.MerkleRoot(), m2.MerkleRoot())
-	if res == 0 {
-		return []*RequestContent{}, errors.New("no conflict")
-	} else {
-		if len(m1.Leafs) != 1 {
-			leftResult, err := getLeafDifferences(m1.Root.Left.Tree, m2.Root.Left.Tree)
-			if err != nil {
-				rightResult, err := getLeafDifferences(m1.Root.Right.Tree, m2.Root.Right.Tree)
-				if err != nil {
-					fmt.Println("IMPOSSIBLE")
-					return []*RequestContent{}, errors.New("Impossible") //IMPOSSIBLE
-				}
-				result = append(result, rightResult...)
-				return result, nil //Result from right
-			}
-			result = append(result, leftResult...)
-			rightResult, err := getLeafDifferences(m1.Root.Right.Tree, m2.Root.Right.Tree)
-			if err != nil {
-				return []*RequestContent{}, nil //Result from left
-			}
-			result = append(result, rightResult...)
-			return result, nil //Result from both left and right
-		} else {
-			result = append(result, m2.Leafs[0].C.(*RequestContent))
-			return result, nil
+func (m *RequestContentMap) updateMapData(key string, data string) {
+	m.m[key] = RequestContent{key: key, data: data}
+	m.sortMap()
+}
+
+func main() {
+	rMap := new(RequestContentMap)
+	rMap.m = make(map[string]RequestContent)
+	rMap1 := new(RequestContentMap)
+	rMap1.m = make(map[string]RequestContent)
+
+	for i := 0; i < 3; i++ {
+		//key := strconv.Itoa(i + rand.Intn(100))
+		key := strconv.Itoa(i)
+		data := key + "is data"
+		rMap.updateMapData(key, data)
+	}
+	for i := 0; i < 3; i++ {
+		//key := strconv.Itoa(i + rand.Intn(100))
+		key := strconv.Itoa(i)
+		data := key + "is data2"
+		if i < 1 {
+			data = key + "is data"
 		}
+		rMap1.updateMapData(key, data)
+	}
+	fmt.Println(rMap)
+	fmt.Println(rMap1)
+	fmt.Println(rMap.tree.MerkleRoot())
+	fmt.Println(rMap1.tree.MerkleRoot())
+	for _, c := range rMap.m {
+		fmt.Println(c)
+		path, index, err := rMap.tree.GetMerklePath(c)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Path: ", path)
+		fmt.Println("Index: ", index)
+	}
+	for _, c := range rMap1.m {
+		fmt.Println(c)
+		path, index, err := rMap.tree.GetMerklePath(c)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Path: ", path)
+		fmt.Println("Index: ", index)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	replication "ShoppiDB/pkg/data_replication"
 	"ShoppiDB/pkg/data_versioning"
 	gossip "ShoppiDB/pkg/gossip"
+	merkle "ShoppiDB/pkg/merkletree"
 	nodePkg "ShoppiDB/pkg/node"
 	"container/heap"
 	"encoding/gob"
@@ -35,8 +36,9 @@ func main() {
 	}
 	priorityQueue := make(replication.PriorityQueue, 0)
 	heap.Init(&priorityQueue)
+	hashTree := make(map[int]*merkle.RequestContentMap)
 	replicator := replication.Replicator{Id: id, N: 2, W: 1, R: 1, Queue: &priorityQueue}
-	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, VirtualNodeMap: localVirtualNodeMap}}
+	localNode := nodePkg.Node{Replicator: &replicator, Membership: gossip.GetMembership(), ContainerName: gossip.GetLocalContainerName(), TokenSet: tokenSet, Gossiper: gossip.Gossip{CommNodeMap: localCommNodeMap, VirtualNodeMap: localVirtualNodeMap}, HashNumberToKey: hashTree}
 
 	fmt.Println(gossip.GetLocalContainerName(), "STARTING")
 	go localNode.StartHTTPServer()
