@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 
-import type { RootState } from "./store"
-import { Context, FoodItem, Item } from "./types"
+import type { RootState } from "../store"
+import { Context, FoodItem, Item } from "../types"
 
 interface CartState {
   key: string

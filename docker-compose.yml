@@ -26,7 +26,7 @@ services:
   node0: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node0
     restart: unless-stopped
     environment:
@@ -37,7 +37,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode0:/redis/volume
     networks:
       - db
@@ -50,7 +49,7 @@ services:
   node1: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node1
     restart: unless-stopped
     environment:
@@ -61,7 +60,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode1:/redis/volume
     networks:
       - db
@@ -74,7 +72,7 @@ services:
   node2: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node2
     restart: unless-stopped
     environment:
@@ -85,7 +83,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode2:/redis/volume
     networks:
       - db
@@ -98,7 +95,7 @@ services:
   node3: #DNS name 
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node3
     restart: unless-stopped
     environment:
@@ -109,7 +106,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode3:/redis/volume
     networks:
       - db
@@ -122,7 +118,7 @@ services:
   node4: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node4
     restart: unless-stopped
     environment:
@@ -133,7 +129,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode4:/redis/volume
     networks:
       - db
@@ -146,7 +141,7 @@ services:
   node5: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node5
     restart: unless-stopped
     environment:
@@ -157,7 +152,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode5:/redis/volume
     networks:
       - db
@@ -170,7 +164,7 @@ services:
   node6: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node6
     restart: unless-stopped
     environment:
@@ -181,7 +175,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode6:/redis/volume
     networks:
       - db
@@ -194,7 +187,7 @@ services:
   node7: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node7
     restart: unless-stopped
     environment:
@@ -205,7 +198,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode7:/redis/volume
     networks:
       - db
@@ -218,7 +210,7 @@ services:
   node8: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node8
     restart: unless-stopped
     environment:
@@ -229,7 +221,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode8:/redis/volume
     networks:
       - db
@@ -242,7 +233,7 @@ services:
   node9: #DNS name
     build:
       context: ./
-      dockerfile: DockerFile_RedisNodeDev
+      dockerfile: DockerFile_NodeInstance
     container_name: node9
     restart: unless-stopped
     environment:
@@ -253,7 +244,6 @@ services:
       - SEEDNODES=0 1
       - MEMBERSHIP=yes
     volumes:
-      - .:/app
       - devnode9:/redis/volume
     networks:
       - db

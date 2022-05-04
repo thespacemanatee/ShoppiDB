@@ -38,7 +38,7 @@ type GossipNode struct {
 	ContainerName string
 	TokenSet      [][2]int
 	Membership    bool
-	statusDown    bool
+	StatusDown    bool
 	failCount     int
 }
 
@@ -116,11 +116,11 @@ func (g *Gossip) clientSendMsgWithHTTP(target string, containerName string) {
 			fmt.Println("Panic Occur, process recovered", r)
 			g.mu.Lock()
 			for i, node := range g.CommNodeMap {
-				if node.ContainerName == containerName && !node.statusDown {
+				if node.ContainerName == containerName && !node.StatusDown {
 					tempNode := node
 					tempNode.failCount += 1
 					if tempNode.failCount >= 3 {
-						tempNode.statusDown = true
+						tempNode.StatusDown = true
 						tempNode.failCount = 0
 					}
 					g.CommNodeMap[i] = tempNode
@@ -162,7 +162,7 @@ func (g *Gossip) populate(seedNodesArray []string) map[string]GossipNode {
 	g.mu.Lock()
 	seedNodesMap := make(map[string]GossipNode)
 	for _, str := range seedNodesArray {
-		node := GossipNode{Membership: true, ContainerName: nodeidToContainerName(str), statusDown: false}
+		node := GossipNode{Membership: true, ContainerName: nodeidToContainerName(str), StatusDown: false}
 		g.CommNodeMap[str] = node
 		// Populating seedNode map as well
 		seedNodesMap[str] = node
@@ -205,11 +205,11 @@ func (g *Gossip) recvGossipMsg(msg GossipMessage) {
 			checkErr(err)
 		}
 		booResult := checkPreferenceList(nodeId, receivedId)
-		if tempNode.statusDown && booResult {
+		if tempNode.StatusDown && booResult {
 			go g.askMerkle(receivedId)
 		}
 		tempNode.failCount = 0
-		tempNode.statusDown = false
+		tempNode.StatusDown = false
 		g.CommNodeMap[lastChar] = tempNode
 	}
 	if msg.Update {
@@ -218,8 +218,8 @@ func (g *Gossip) recvGossipMsg(msg GossipMessage) {
 			fmt.Println("Update true, the node update is", nodeID, "and current id", currentNodeID)
 			url := CONN_TYPE + gossNode.ContainerName + CONN_PORT + "/checkHeartbeat"
 			if _, exist := g.CommNodeMap[nodeID]; exist {
-				if g.CommNodeMap[nodeID].statusDown != gossNode.statusDown {
-					if g.verifyNodeDown(url) == gossNode.statusDown {
+				if g.CommNodeMap[nodeID].StatusDown != gossNode.StatusDown {
+					if g.verifyNodeDown(url) == gossNode.StatusDown {
 						fmt.Println("Update local copy due to updated status and verfied")
 						g.CommNodeMap[nodeID] = gossNode
 						for _, rnge := range gossNode.TokenSet {
@@ -311,11 +311,11 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 			checkErr(err)
 		}
 		booResult := checkPreferenceList(nodeId, receivedId)
-		if tempNode.statusDown && booResult {
+		if tempNode.StatusDown && booResult {
 			go g.askMerkle(receivedId)
 		}
 		tempNode.failCount = 0
-		tempNode.statusDown = false
+		tempNode.StatusDown = false
 		g.CommNodeMap[lastChar] = tempNode
 	}
 
@@ -335,9 +335,9 @@ func (g *Gossip) CompareAndUpdate(msg GossipMessage) GossipMessage {
 			senderUniqueNodeCounter += 1
 		} else {
 			if senderKey != GetLocalNodeID() {
-				if senderValue.statusDown != g.CommNodeMap[senderKey].statusDown {
+				if senderValue.StatusDown != g.CommNodeMap[senderKey].StatusDown {
 					url := CONN_TYPE + senderValue.ContainerName + CONN_PORT + "/checkHeartbeat"
-					if g.verifyNodeDown(url) == senderValue.statusDown {
+					if g.verifyNodeDown(url) == senderValue.StatusDown {
 						g.CommNodeMap[senderKey] = senderValue
 					} else {
 						fmt.Println("Local copy is correct")

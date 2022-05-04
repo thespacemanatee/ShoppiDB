@@ -1,23 +1,31 @@
 import { Button } from "antd"
-import { nanoid } from "nanoid"
 
 import { addItemToCart, setCart } from "../features/cart/cartSlice"
-import { useAppDispatch, useAppSelector } from "../features/cart/hooks"
-import { FoodItem } from "../features/cart/types"
-import { putCart } from "../services/api"
+import { useAppDispatch, useAppSelector } from "../features/hooks"
+import { FoodItem } from "../features/types"
+import { getCartByKey, putCart } from "../services/api"
+import { CART_KEY } from "../config/constants"
 
 import mockData from "../services/mockData"
+import { useEffect } from "react"
 
 export default function Home() {
   const cart = useAppSelector((state) => state.cart)
 
   const dispatch = useAppDispatch()
 
+  useEffect(() => {
+    ;(async () => {
+      const res = await getCartByKey(CART_KEY)
+      console.log(res)
+    })()
+  }, [])
+
   const handleAddToCart = async (item: FoodItem) => {
     try {
       let key = cart.key
       if (!key) {
-        key = nanoid()
+        key = CART_KEY
       }
       dispatch(addItemToCart(item))
       const temp = [...cart.items].map((e) => ({ ...e }))

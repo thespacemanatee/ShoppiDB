@@ -22,7 +22,7 @@ type Replicator struct {
 	Queue        *PriorityQueue
 	WriteCheck   map[int]bool
 	HandoffCheck map[int]bool
-	ReadCheck    map[int]string
+	ReadCheck    map[int]data_versioning.DataObject
 	mu           sync.Mutex
 	queueLock    sync.Mutex
 }
@@ -48,20 +48,20 @@ type ClientReq struct {
 	Timestamp  time.Time
 	IsWriteReq bool
 	DataObject data_versioning.DataObject
-
-	NodeStructure map[int]int
-	resChannel    *chan Result
+	PrefLst    map[int]int
+	resChannel *chan Result
 }
 
 type Result struct {
-	DataObject data_versioning.DataObject
-	success    bool
+	DataObject         data_versioning.DataObject
+	ConflictingObjects map[string]data_versioning.DataObject
+	Success            bool
 }
 
-func (r *Replicator) AddRequest(nodeStructure map[int]int, dataObject data_versioning.DataObject, isWrite bool) Result {
+func (r *Replicator) AddRequest(prefLst map[int]int, dataObject data_versioning.DataObject, isWrite bool) Result {
 	r.queueLock.Lock()
 	c := make(chan Result, 10)
-	req := ClientReq{Timestamp: time.Now(), IsWriteReq: isWrite, DataObject: dataObject, resChannel: &c, NodeStructure: nodeStructure}
+	req := ClientReq{Timestamp: time.Now(), IsWriteReq: isWrite, DataObject: dataObject, resChannel: &c, PrefLst: prefLst}
 	head := r.Queue.Front()
 	r.Queue.Push(&Item{Req: req})
 	r.queueLock.Unlock()
@@ -107,7 +107,7 @@ func (r *Replicator) ReplicateWrites(req ClientReq) {
 	r.HandoffCheck = make(map[int]bool)
 	failedConnections := 0
 	failedTargets := []int{}
-	targets := r.getNodes(r.N-1, 1, req.NodeStructure)
+	targets := r.getNodes(r.N-1, 1, req.PrefLst)
 	// contact N-1 nodes in preferenceList
 	for _, target := range targets {
 		msg := ReplicationMessage{SenderId: id, Dest: target, DataObject: req.DataObject, MessageCode: 0}
@@ -127,7 +127,7 @@ func (r *Replicator) ReplicateWrites(req ClientReq) {
 		// if failedConnections == 0 || startingPt == id {
 		// 	break
 		// }
-		newTargets := r.getNodes(failedConnections, startingPt, req.NodeStructure)
+		newTargets := r.getNodes(failedConnections, startingPt, req.PrefLst)
 		for _, target := range newTargets {
 			// sending handoff mesages
 			handoffMsg := ReplicationMessage{SenderId: id, Dest: target, IntendedRecipientId: failedTargets[count], DataObject: req.DataObject, MessageCode: 5}
@@ -153,7 +153,7 @@ func (r *Replicator) ReplicateWrites(req ClientReq) {
 	fmt.Println("Results for write replication")
 	quorumRes := r.checkWriteQuorum()
 	// sending of results back to client
-	*req.resChannel <- Result{req.DataObject, quorumRes}
+	*req.resChannel <- Result{DataObject: req.DataObject, Success: quorumRes}
 	if quorumRes {
 		// write quorum passed, send values to nodes
 		fmt.Println("sending values to nodes that were contactable")
@@ -192,14 +192,14 @@ func (r *Replicator) ReplicateWrites(req ClientReq) {
 }
 
 // starts read replication processs
-func (r *Replicator) ReplicateReads(req ClientReq) (bool, string) {
+func (r *Replicator) ReplicateReads(req ClientReq) {
 	fmt.Println("Node: " + (r.Id) + " beginning read replication")
 	id, err := strconv.Atoi(r.Id)
 	if err != nil {
 		fmt.Println(err)
 	}
-	r.ReadCheck = make(map[int]string)
-	targets := r.getNodes(r.N-1, 1, req.NodeStructure)
+	r.ReadCheck = make(map[int]data_versioning.DataObject)
+	targets := r.getNodes(r.N-1, 1, req.PrefLst)
 	// checks N-1 nodes in preference list
 	for _, target := range targets {
 		msg := ReplicationMessage{SenderId: id, Dest: target, DataObject: req.DataObject, MessageCode: 7}
@@ -209,14 +209,14 @@ func (r *Replicator) ReplicateReads(req ClientReq) (bool, string) {
 			fmt.Println("Message to " + strconv.Itoa(t) + " failed")
 		}
 	}
+	r.readOwnValue(req)
 	// sents to nodes next in priority list
 	time.Sleep(time.Second * 1)
 	fmt.Println("Results for read replication")
-	res, val := r.checkReadQuorum()
+	res, conflictingObjects := r.checkReadQuorum()
 	// sending read result back to client
-	*req.resChannel <- Result{DataObject: data_versioning.DataObject{Key: req.DataObject.Key, Value: val, Context: req.DataObject.Context}, success: res}
+	*req.resChannel <- Result{ConflictingObjects: conflictingObjects, Success: res}
 	go r.HandleNextInQueue()
-	return res, val
 }
 func (r *Replicator) SendReplicationMessage(httpClient *http.Client, msg ReplicationMessage) (failedConn int, failedTarget int) {
 	// used to indicate whether connection failed
@@ -267,32 +267,21 @@ func (r *Replicator) checkWriteQuorum() bool {
 	}
 }
 
-func (r *Replicator) checkReadQuorum() (bool, string) {
-	values := make(map[string]int)
+func (r *Replicator) checkReadQuorum() (bool, map[string]data_versioning.DataObject) {
 	r.mu.Lock()
-	fmt.Println(r.ReadCheck)
-	for _, v := range r.ReadCheck {
-		if values[v] == 0 {
-			values[v] = 1
-		} else {
-			values[v] = values[v] + 1
-		}
+	numResponses := len(r.ReadCheck)
+	dataObjects := make([]data_versioning.DataObject, numResponses)
+	for _, dataObj := range r.ReadCheck {
+		dataObjects = append(dataObjects, dataObj)
 	}
-	max := 0
-	key := ""
-	for k, count := range values {
-		if max < count {
-			max = count
-			key = k
-		}
-	}
+	conflictingObjs := data_versioning.GetResponseDataObjects(dataObjects)
 	r.mu.Unlock()
-	if max < r.R {
+	if numResponses < r.R {
 		fmt.Println("failed read quorum")
-		return false, key
+		return false, conflictingObjs
 	} else {
 		fmt.Println("passed read quorum")
-		return true, key
+		return true, conflictingObjs
 	}
 }
 
@@ -314,7 +303,7 @@ func (r *Replicator) HandleReadResponse(receivedMsg ReplicationMessage) {
 	valJson, err := rdb.Get(ctx, data.Key).Result()
 	r.mu.Unlock()
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	var val data_versioning.DataObject
 	json.Unmarshal([]byte(valJson), &val)
@@ -342,7 +331,7 @@ func (r *Replicator) HandleCommit(msg ReplicationMessage) {
 	err = rdb.Set(ctx, data.Key, dataJson, 0).Err()
 	fmt.Println(data)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 }
 
@@ -357,7 +346,7 @@ func (r *Replicator) HandleHandoffCommit(msg ReplicationMessage) {
 	rdb := redisDB.GetDBClient()
 	err = rdb.Set(ctx, data.Key, dataJson, 0).Err()
 	if err != nil {
-		panic(err)
+		fmt.Print(err)
 	}
 	msgToIntended := ReplicationMessage{SenderId: getOwnId(), Dest: msg.IntendedRecipientId, DataObject: msg.DataObject, MessageCode: 6}
 	for {
@@ -395,7 +384,7 @@ func (r *Replicator) HandleHandoffToIntended(msg ReplicationMessage) {
 	rdb := redisDB.GetDBClient()
 	err = rdb.Set(ctx, data.Key, dataJson, 0).Err()
 	if err != nil {
-		panic(err)
+		fmt.Print(err)
 	}
 }
 
@@ -407,9 +396,10 @@ func (r *Replicator) AddSuccessfulWrite(id int) {
 }
 
 // stores response from node
+// ReadCheck stores the value associated to node id
 func (r *Replicator) AddSuccessfulRead(msg ReplicationMessage) {
 	r.mu.Lock()
-	r.ReadCheck[msg.SenderId] = msg.DataObject.Value
+	r.ReadCheck[msg.SenderId] = msg.DataObject
 	r.mu.Unlock()
 }
 
@@ -456,4 +446,20 @@ func GetHTTPClient(timeout time.Duration) *http.Client {
 		Transport: tr,
 	}
 	return client
+}
+
+func (r *Replicator) readOwnValue(req ClientReq) {
+	r.mu.Lock()
+	rdb := redisDB.GetDBClient()
+	data := req.DataObject
+	ctx := context.Background()
+	valJson, err := rdb.Get(ctx, data.Key).Result()
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		var val data_versioning.DataObject
+		json.Unmarshal([]byte(valJson), &val)
+		r.ReadCheck[getOwnId()] = val
+	}
+	r.mu.Unlock()
 }

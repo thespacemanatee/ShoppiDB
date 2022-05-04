@@ -1,5 +1,6 @@
 import { Button } from "antd"
 import { motion } from "framer-motion"
+import { useEffect } from "react"
 
 import {
   addOne,
@@ -7,15 +8,22 @@ import {
   removeOne,
   setCart,
 } from "../features/cart/cartSlice"
-import { useAppDispatch, useAppSelector } from "../features/cart/hooks"
-import { putCart } from "../services/api"
-
+import { useAppDispatch, useAppSelector } from "../features/hooks"
+import { getCartByKey, putCart } from "../services/api"
+import { CART_KEY } from "../config/constants"
 import mockData from "../services/mockData"
 
 export default function Cart() {
   const cart = useAppSelector((state) => state.cart)
 
   const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    ;(async () => {
+      const res = await getCartByKey(CART_KEY)
+      console.log(res)
+    })()
+  }, [])
 
   const handleRemoveFromCart = async (foodId: string) => {
     try {
@@ -40,7 +48,7 @@ export default function Cart() {
 
   const handleAddOne = async (foodId: string) => {
     try {
-      dispatch(removeOne(foodId))
+      dispatch(addOne(foodId))
       const temp = [...cart.items].map((e) => ({ ...e }))
       const updatedItem = temp.find((e) => e.id === foodId)
       if (updatedItem) {
@@ -67,7 +75,7 @@ export default function Cart() {
 
   const handleRemoveOne = async (foodId: string) => {
     try {
-      dispatch(addOne(foodId))
+      dispatch(removeOne(foodId))
       const temp = [...cart.items].map((e) => ({ ...e }))
       const updatedItem = temp.find((e) => e.id === foodId)
       if (updatedItem) {
