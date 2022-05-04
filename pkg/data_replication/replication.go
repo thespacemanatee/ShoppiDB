@@ -267,10 +267,11 @@ func (r *Replicator) checkWriteQuorum() bool {
 }
 
 func (r *Replicator) checkReadQuorum() (bool, map[string]data_versioning.DataObject) {
+	r.mu.Lock()
 	numResponses := len(r.ReadCheck)
 	dataObjects := make([]data_versioning.DataObject, numResponses)
-	for i, dataObj := range r.ReadCheck {
-		dataObjects[i] = dataObj
+	for _, dataObj := range r.ReadCheck {
+		dataObjects = append(dataObjects, dataObj)
 	}
 	conflictingObjs := data_versioning.GetResponseDataObjects(dataObjects)
 	r.mu.Unlock()
@@ -301,7 +302,7 @@ func (r *Replicator) HandleReadResponse(receivedMsg ReplicationMessage) {
 	valJson, err := rdb.Get(ctx, data.Key).Result()
 	r.mu.Unlock()
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	var val data_versioning.DataObject
 	json.Unmarshal([]byte(valJson), &val)
@@ -329,7 +330,7 @@ func (r *Replicator) HandleCommit(msg ReplicationMessage) {
 	err = rdb.Set(ctx, data.Key, dataJson, 0).Err()
 	fmt.Println(data)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 }
 

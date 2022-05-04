@@ -1,5 +1,6 @@
 import { Button } from "antd"
 import { motion } from "framer-motion"
+import { useEffect } from "react"
 
 import {
   addOne,
@@ -8,14 +9,21 @@ import {
   setCart,
 } from "../features/cart/cartSlice"
 import { useAppDispatch, useAppSelector } from "../features/hooks"
-import { putCart } from "../services/api"
-
+import { getCartByKey, putCart } from "../services/api"
+import { CART_KEY } from "../config/constants"
 import mockData from "../services/mockData"
 
 export default function Cart() {
   const cart = useAppSelector((state) => state.cart)
 
   const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    ;(async () => {
+      const res = await getCartByKey(CART_KEY)
+      console.log(res)
+    })()
+  }, [])
 
   const handleRemoveFromCart = async (foodId: string) => {
     try {
